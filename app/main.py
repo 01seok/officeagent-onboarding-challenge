@@ -28,6 +28,8 @@ app.container = container
 from app.api.document.router import router as document_router
 app.include_router(document_router)
 
+from app.api.query.router import router as query_router
+app.include_router(query_router)
 
 @app.exception_handler(AppException)
 async def app_exception_handler(request: Request, exc: AppException):

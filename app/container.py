@@ -5,11 +5,13 @@ from app.infra.doc_store import DocumentStore
 from app.infra.embedding import EmbeddingService
 from app.api.document.repository import DocumentRepository
 from app.api.document.service import DocumentServiceImpl
-
+from app.infra.bm25 import BM25Searcher
+from app.api.query.repository import QueryRepository
+from app.api.query.service import QueryServiceImpl
 
 class Container(containers.DeclarativeContainer):
     wiring_config = containers.WiringConfiguration(
-        modules=["app.api.document.router"]
+        modules=["app.api.document.router", "app.api.query.router"]
     )
 
     config = providers.Configuration()
@@ -28,6 +30,12 @@ class Container(containers.DeclarativeContainer):
         model_name=config.embedding_model,
     )
 
+    # BM25 검색 (Singleton, 문서 변경 시 lazy rebuild)
+    bm25_searcher = providers.Singleton(
+        BM25Searcher,
+        chroma=chroma_client,
+    )
+    
     # Repository
     document_repository = providers.Factory(
         DocumentRepository,
@@ -40,4 +48,19 @@ class Container(containers.DeclarativeContainer):
         DocumentServiceImpl,
         repository=document_repository,
         embedding=embedding_service,
+        bm25=bm25_searcher,
+    )
+    
+    # Query
+    query_repository = providers.Factory(
+        QueryRepository,
+        chroma=chroma_client,
+        bm25=bm25_searcher,
+        embedding=embedding_service,
+        doc_store=doc_store,
+    )
+
+    query_service = providers.Factory(
+        QueryServiceImpl,
+        repository=query_repository,
     )
