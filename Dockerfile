@@ -2,10 +2,16 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# 시스템 의존성
+# 시스템 의존성 + Node.js (claude CLI 실행에 필요)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    curl \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
+
+# claude CLI 설치 (claude-code-sdk가 내부적으로 호출)
+RUN npm install -g @anthropic-ai/claude-code
 
 # 의존성 먼저 설치 (레이어 캐시 활용)
 COPY requirements.txt .
