@@ -33,9 +33,9 @@ class BM25Searcher:
         corpus = [c["document"].split() for c in chunks]
         self._index = BM25Okapi(corpus)
         self._chunks = chunks
-
-    def search(self, query: str, n_results: int) -> list[dict]:
-        # BM25 점수 상위 n_results 청크 반환, 인덱스가 없으면 빈 리스트
+        
+    # BM25 점수 상위 n_results 청크 반환, 인덱스가 없으면 빈 리스트
+    def search(self, query: str, n_results: int, doc_id: str | None = None) -> list[dict]:
         with self._lock:
             if self._dirty:
                 self._rebuild()
@@ -51,10 +51,17 @@ class BM25Searcher:
                 zip(scores, self._chunks),
                 key=lambda x: x[0],
                 reverse=True,
-            )[:n_results]
+            )
 
-            return [
-                {**chunk, "score": float(score)}
-                for score, chunk in scored
-                if score > 0
-            ]
+            results = []
+            for score, chunk in scored:
+                if score <= 0:
+                    break
+                # doc_id 필터를 검색 시점에 처리, 후처리 대비 후보 수 보장
+                if doc_id and chunk["metadata"].get("doc_id") != doc_id:
+                    continue
+                results.append({**chunk, "score": float(score)})
+                if len(results) >= n_results:
+                    break
+
+            return results
