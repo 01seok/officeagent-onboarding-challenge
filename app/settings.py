@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     CHROMA_PERSIST_DIR: str = "./data/chroma"
     EMBEDDING_MODEL: str = "intfloat/multilingual-e5-small"
     UPLOAD_DIR: str = "./uploads"
+    DOC_STORE_PATH: str = "./data/documents.json"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
