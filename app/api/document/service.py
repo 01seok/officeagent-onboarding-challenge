@@ -8,6 +8,7 @@ from app.api.document.domain import Document
 from app.api.document.repository import DocumentRepository
 from app.common.exception.app_exception import AppException
 from app.common.exception.error_code import ErrorCode
+from app.infra.bm25 import BM25Searcher
 from app.infra.chunker import RecursiveTextChunker
 from app.infra.embedding import EmbeddingService
 from app.infra.parser import DocumentParser
@@ -32,9 +33,10 @@ class DocumentService(ABC):
 
 
 class DocumentServiceImpl(DocumentService):
-    def __init__(self, repository: DocumentRepository, embedding: EmbeddingService):
+    def __init__(self, repository: DocumentRepository, embedding: EmbeddingService, bm25: BM25Searcher):
         self._repo = repository
         self._embedding = embedding
+        self._bm25 = bm25
         self._parser = DocumentParser()
         self._chunker = RecursiveTextChunker()
 
@@ -78,6 +80,7 @@ class DocumentServiceImpl(DocumentService):
                 ],
             )
             self._repo.update_status(doc_id, "completed", chunk_count=len(chunks))
+            self._bm25.invalidate()
 
         except AppException:
             self._repo.update_status(doc_id, "failed")
@@ -92,3 +95,4 @@ class DocumentServiceImpl(DocumentService):
         if not self._repo.exists(doc_id):
             raise AppException(ErrorCode.DOCUMENT_NOT_FOUND)
         self._repo.delete(doc_id)
+        self._bm25.invalidate()

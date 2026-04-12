@@ -69,6 +69,16 @@ class ChromaClient:
     def delete_by_doc_id(self, doc_id: str) -> None:
         self._collection.delete(where={"doc_id": doc_id})
 
+    def get_all_chunks_global(self) -> list[dict]:
+        """BM25 인덱스 빌드용 — 필터 없이 전체 청크 반환"""
+        result = self._collection.get(include=["documents", "metadatas"])
+        return [
+            {"chunk_id": cid, "document": doc, "metadata": meta}
+            for cid, doc, meta in zip(
+                result["ids"], result["documents"], result["metadatas"]
+            )
+        ]
+
     def count_chunks(self, doc_id: str) -> int:
         result = self._collection.get(where={"doc_id": doc_id}, include=[])
         return len(result["ids"])
