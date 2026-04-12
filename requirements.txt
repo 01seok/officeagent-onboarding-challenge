@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+python-multipart
+dependency-injector
+pydantic-settings
+aiosqlite
+sqlalchemy[asyncio]
+chromadb
+redis[hiredis]
+rank-bm25
+sentence-transformers
+PyPDF2
+markdown
+claude-code-sdk
