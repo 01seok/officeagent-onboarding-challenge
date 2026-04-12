@@ -17,7 +17,7 @@ echo "🤖 Retrobot: 회고 생성 중..."
 
 # Claude Code SDK 또는 Codex CLI로 스킬 실행
 if command -v claude >/dev/null 2>&1; then
-    claude -p "$(cat $SKILL_PATH)" --allowedTools 'Bash(command)' 'Read(file_path)' 'Write(file_path,content)' 'Glob(pattern)' 'Grep(pattern)' 2>/dev/null
+    claude -p "$(cat $SKILL_PATH)" --allowedTools "Bash,Read,Write,Glob,Grep" 2>/dev/null
 elif command -v codex >/dev/null 2>&1; then
     codex --quiet "$(cat $SKILL_PATH)" 2>/dev/null
 else
