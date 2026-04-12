@@ -21,3 +21,7 @@ Thumbs.db
 # Docker
 docker-compose.override.yml
 .omc/
+
+# 개인 작업 문서
+ver1_claude.md
+officeagent_challenge_approach.md
