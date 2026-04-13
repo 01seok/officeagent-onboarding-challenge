@@ -19,6 +19,16 @@ _SYSTEM_PROMPT = """
   {"answer": "답변 내용", "source_indices": [0, 1], "has_relevant_content": true}
 """
 
+# 스트리밍 전용 프롬프트 : JSON 강제 없이 자연스러운 문장으로 답변
+_STREAM_SYSTEM_PROMPT = """
+당신은 제공된 문서를 기반으로만 답변하는 Q&A 어시스턴트입니다.
+
+규칙:
+1. 반드시 [Source N] 태그로 표시된 문서 내용만 근거로 사용하세요.
+2. 문서에 관련 내용이 없으면 '제공된 문서에서 관련 내용을 찾을 수 없습니다.'라고 답하세요.
+3. 자연스러운 문장으로 간결하게 답변하세요.
+"""
+
 class LLMService:
     
     async def generate_answer(
@@ -65,3 +75,23 @@ class LLMService:
             source_indices=[],
             has_relevant_content=bool(raw.strip()),
         )
+
+
+    async def generate_answer_stream(
+        self, question: str, chunks: list[dict]
+    ):
+        # async generator, 토큰이 올 때마다 즉시 yield (모아서 반환하지 않음)
+        prompt = self._build_user_prompt(question, chunks)
+
+        async for message in query(
+            prompt=prompt,
+            options=ClaudeCodeOptions(
+                system_prompt=_STREAM_SYSTEM_PROMPT,
+                max_turns=1,
+            ),
+        ):
+            if hasattr(message, "content") and isinstance(message.content, list):
+                for block in message.content:
+                    # 텍스트 블록이 있을 때만 yield, 빈 문자열은 제외
+                    if hasattr(block, "text") and block.text:
+                        yield block.text
