@@ -31,5 +31,5 @@ class DocumentParser:
     def _parse_md(self, data: bytes) -> str:
         raw = data.decode("utf-8", errors="ignore")
         html = markdown.markdown(raw)
-        # HTML 태그 제거 후 plain text 반환
-        return re.sub(r"<[^>]+>", "", html)
+        text = re.sub(r"<[^>]+>", " ", html)    # 태그를 공백으로 치환
+        return re.sub(r"\s+", " ", text).strip()    # 연속된 공백 정리
