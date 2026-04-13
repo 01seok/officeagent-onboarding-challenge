@@ -16,4 +16,6 @@ class SourceItem(BaseModel):
     
 class QueryResponse(BaseModel):
     question: str
+    answer: str                 # LLM이 생성한 최종 답변
+    has_relevant_content: bool  # 문서에 근거가 있는지에 대한 여부
     sources: list[SourceItem]

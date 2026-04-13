@@ -3,9 +3,11 @@ from dependency_injector import containers, providers
 from app.infra.chroma import ChromaClient
 from app.infra.doc_store import DocumentStore
 from app.infra.embedding import EmbeddingService
+from app.infra.llm import LLMService
+from app.infra.bm25 import BM25Searcher
+
 from app.api.document.repository import DocumentRepository
 from app.api.document.service import DocumentServiceImpl
-from app.infra.bm25 import BM25Searcher
 from app.api.query.repository import QueryRepository
 from app.api.query.service import QueryServiceImpl
 
@@ -16,7 +18,7 @@ class Container(containers.DeclarativeContainer):
 
     config = providers.Configuration()
 
-    # 인프라 (Singleton) — 앱 전체에서 인스턴스 1개
+    # 인프라 (Singleton) : 앱 전체에서 인스턴스 1개
     chroma_client = providers.Singleton(
         ChromaClient,
         persist_dir=config.chroma_persist_dir,
@@ -34,6 +36,11 @@ class Container(containers.DeclarativeContainer):
     bm25_searcher = providers.Singleton(
         BM25Searcher,
         chroma=chroma_client,
+    )
+    
+    # LLM 호출 (Singleton, claude code sdk)
+    llm_service = providers.Singleton(
+        LLMService
     )
     
     # Repository
@@ -63,4 +70,5 @@ class Container(containers.DeclarativeContainer):
     query_service = providers.Factory(
         QueryServiceImpl,
         repository=query_repository,
+        llm=llm_service,
     )
