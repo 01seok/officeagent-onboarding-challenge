@@ -51,7 +51,8 @@ class QueryServiceImpl(QueryService):
             chunks[i] for i in dict.fromkeys(result.source_indices)
             if i < len(chunks)
         ]
-        sources = referenced if referenced else chunks
+        # LLM이 source_indices를 비워 반환하면 근거 없음 신호, 전체 청크를 출처로 내리지 않음
+        sources = referenced
 
         return result.answer, True, sources
     

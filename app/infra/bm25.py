@@ -24,23 +24,28 @@ class BM25Searcher:
         with self._lock:
             self._dirty = True
 
-    def _rebuild(self) -> None:
-        chunks = self._chroma.get_all_chunks_global()
-        if not chunks:
-            self._index = None
-            self._chunks = []
-            return
-        corpus = [c["document"].split() for c in chunks]
-        self._index = BM25Okapi(corpus)
-        self._chunks = chunks
-        
     # BM25 점수 상위 n_results 청크 반환, 인덱스가 없으면 빈 리스트
     def search(self, query: str, n_results: int, doc_id: str | None = None) -> list[dict]:
         with self._lock:
-            if self._dirty:
-                self._rebuild()
-                self._dirty = False
+            need_rebuild = self._dirty
+            if need_rebuild:
+                self._dirty = False  # 플래그 먼저 내림
 
+        if need_rebuild:
+            # Lock 밖에서 ChromaDB 조회 + 인덱스 빌드 (블로킹 시간 최소화)
+            chunks = self._chroma.get_all_chunks_global()
+            if chunks:
+                corpus = [c["document"].split() for c in chunks]
+                new_index = BM25Okapi(corpus)
+            else:
+                new_index = None
+                chunks = []
+            # 완성된 인덱스를 atomic하게 교체
+            with self._lock:
+                self._index = new_index
+                self._chunks = chunks
+
+        with self._lock:
             if self._index is None or not self._chunks:
                 return []
 

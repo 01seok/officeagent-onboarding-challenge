@@ -20,10 +20,14 @@ class DocumentStore:
             self._write(data)
 
     def get(self, doc_id: str) -> dict | None:
-        return self._read().get(doc_id)
+        # 쓰기 도중 불완전한 JSON 읽기 방지
+        with self._lock:
+            return self._read().get(doc_id)
 
     def list_all(self) -> list[dict]:
-        return list(self._read().values())
+        # 쓰기 도중 불완전한 JSON 읽기 방지
+        with self._lock:
+            return list(self._read().values())
 
     def update(self, doc_id: str, **kwargs) -> None:
         with self._lock:
@@ -39,7 +43,9 @@ class DocumentStore:
             self._write(data)
 
     def exists(self, doc_id: str) -> bool:
-        return doc_id in self._read()
+        # 쓰기 도중 불완전한 JSON 읽기 방지
+        with self._lock:
+            return doc_id in self._read()
 
     def _read(self) -> dict:
         with open(self._path, "r", encoding="utf-8") as f:

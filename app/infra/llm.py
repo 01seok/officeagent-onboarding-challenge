@@ -73,7 +73,8 @@ class LLMService:
         return LLMAnswerResult(
             answer=raw.strip() or "답변을 생성할 수 없습니다.",
             source_indices=[],
-            has_relevant_content=bool(raw.strip()),
+            # JSON 파싱 실패한 응답은 근거 있는 답변으로 분류하지 않음
+            has_relevant_content=False,
         )
 
 

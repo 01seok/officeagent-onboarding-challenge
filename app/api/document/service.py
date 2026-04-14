@@ -1,6 +1,9 @@
+import logging
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 from fastapi import UploadFile
 
@@ -87,6 +90,7 @@ class DocumentServiceImpl(DocumentService):
             raise
         except Exception:
             self._repo.update_status(doc_id, "failed")
+            logger.exception("문서 처리 실패: doc_id=%s", doc_id)  # 원인 추적용
 
     def list_documents(self) -> list[dict]:
         return self._repo.list_all()

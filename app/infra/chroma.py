@@ -32,6 +32,12 @@ class ChromaClient:
         n_results: int = 100,
         where: dict | None = None,
     ) -> list[dict]:
+        # n_results가 저장된 문서 수를 초과하면 ChromaDB 내부 에러 발생
+        count = self._collection.count()
+        if count == 0:
+            return []
+        n_results = min(n_results, count)
+
         kwargs: dict = {
             "query_embeddings": [query_embedding],
             "n_results": n_results,
