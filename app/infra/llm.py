@@ -1,7 +1,11 @@
+import logging
 import re
 
 from claude_code_sdk import query, ClaudeCodeOptions
+from claude_code_sdk._errors import MessageParseError
 from pydantic import BaseModel, ValidationError
+
+logger = logging.getLogger(__name__)
 
 # LLM이 반환해야 할 Json 구조, 파싱 실패 즉시 감지
 class LLMAnswerResult(BaseModel):
@@ -36,20 +40,25 @@ class LLMService:
     ) -> LLMAnswerResult:
         prompt = self._build_user_prompt(question, chunks)
         raw_parts: list[str] = []
-        
-        # query()는 async generator, 메시지를 스트리밍으로 수신하므로 async for로 소비
-        async for message in query(
-            prompt=prompt,
-            options=ClaudeCodeOptions(
-                system_prompt=_SYSTEM_PROMPT,
-                max_turns=1,  # 단발성 응답만 필요, 다음 턴 없음
-            ),
-        ):
-            # AssistantMessage는 content가 블록 리스트로 구성
-            if hasattr(message, "content") and isinstance(message.content, list):
-                for block in message.content:
-                    if hasattr(block, "text"):
-                        raw_parts.append(block.text)
+
+        try:
+            # query()는 async generator, 메시지를 스트리밍으로 수신하므로 async for로 소비
+            async for message in query(
+                prompt=prompt,
+                options=ClaudeCodeOptions(
+                    system_prompt=_SYSTEM_PROMPT,
+                    max_turns=1,  # 단발성 응답만 필요, 다음 턴 없음
+                ),
+            ):
+                # AssistantMessage는 content가 블록 리스트로 구성
+                if hasattr(message, "content") and isinstance(message.content, list):
+                    for block in message.content:
+                        if hasattr(block, "text"):
+                            raw_parts.append(block.text)
+        except MessageParseError as e:
+            # SDK가 rate_limit_event 등 informational 메시지 타입을 case에 안 넣어서 예외 발생
+            # assistant 메시지가 먼저 왔다면 raw_parts에 답변이 이미 쌓였을 수 있어 그대로 파싱
+            logger.warning("claude-code-sdk MessageParseError, 누적된 응답으로 파싱 시도: %s", e)
 
         return self._parse_response("".join(raw_parts))
 
@@ -84,15 +93,19 @@ class LLMService:
         # async generator, 토큰이 올 때마다 즉시 yield (모아서 반환하지 않음)
         prompt = self._build_user_prompt(question, chunks)
 
-        async for message in query(
-            prompt=prompt,
-            options=ClaudeCodeOptions(
-                system_prompt=_STREAM_SYSTEM_PROMPT,
-                max_turns=1,
-            ),
-        ):
-            if hasattr(message, "content") and isinstance(message.content, list):
-                for block in message.content:
-                    # 텍스트 블록이 있을 때만 yield, 빈 문자열은 제외
-                    if hasattr(block, "text") and block.text:
-                        yield block.text
+        try:
+            async for message in query(
+                prompt=prompt,
+                options=ClaudeCodeOptions(
+                    system_prompt=_STREAM_SYSTEM_PROMPT,
+                    max_turns=1,
+                ),
+            ):
+                if hasattr(message, "content") and isinstance(message.content, list):
+                    for block in message.content:
+                        # 텍스트 블록이 있을 때만 yield, 빈 문자열은 제외
+                        if hasattr(block, "text") and block.text:
+                            yield block.text
+        except MessageParseError as e:
+            # SDK가 rate_limit_event 등 informational 타입을 모르는 경우, 스트림 종료만 처리
+            logger.warning("claude-code-sdk MessageParseError, 스트리밍 중단: %s", e)
