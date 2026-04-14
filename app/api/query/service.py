@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import AsyncGenerator
 
 from app.api.query.domain import ChunkResult
 from app.api.query.repository import QueryRepository
@@ -11,6 +12,12 @@ class QueryService(ABC):
     async def answer(
         self, question: str, top_k: int, doc_id: str | None
     ) -> tuple[str, bool, list[ChunkResult]]:
+        ...
+    
+    @abstractmethod
+    async def answer_stream(
+        self, question: str, top_k: int, doc_id: str | None
+    ) -> AsyncGenerator[str, None]:
         ...
 
 class QueryServiceImpl(QueryService):
@@ -47,3 +54,22 @@ class QueryServiceImpl(QueryService):
         sources = referenced if referenced else chunks
 
         return result.answer, True, sources
+    
+    
+    async def answer_stream(
+        self, question: str, top_k: int, doc_id: str | None
+    ) -> AsyncGenerator[str, None]:
+        # 1단계 : 스트리밍도 동일한 하이브리드 검색으로 관련 청크 확보
+        chunks = await self._repository.hybrid_search(question, top_k, doc_id)
+
+        if not chunks:
+            # 검색 결과 없으면 안내 문구 1회 yield하고 종료
+            yield "제공된 문서에서 관련 내용을 찾을 수 없습니다."
+            return
+
+        # 2단계 : answer()와 동일한 컨텍스트 구성, 포맷 일관성 유지
+        context = [{"filename": c.filename, "text": c.text} for c in chunks]
+
+        # 3단계 : LLM 토큰을 그대로 통과 (가공 없음)
+        async for token in self._llm.generate_answer_stream(question, context):
+            yield token

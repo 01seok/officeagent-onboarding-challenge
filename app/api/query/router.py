@@ -1,5 +1,5 @@
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, StreamingResponse
 
 from app.api.query.schema import QueryRequest, QueryResponse, SourceItem
 from app.api.query.service import QueryService
@@ -39,3 +39,19 @@ async def query_documents(
             ],
         )
     )
+    
+@router.post("/stream")
+@inject
+async def stream_query(
+    request: QueryRequest,
+    service: QueryService = Depends(Provide[Container.query_service]),
+):
+    async def event_generator():
+        async for token in service.answer_stream(
+            request.question, request.top_k, request.doc_id
+        ):
+            # SSE 표준 포맷, "data: {내용}\n\n" 형식으로 전달
+            yield f"data: {token}\n\n"
+
+    # text/event-stream, SSE 표준, 브라우저/Postman 모두 스트리밍으로 인식
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
