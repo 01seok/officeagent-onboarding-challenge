@@ -28,7 +28,11 @@ class QueryRepository:
             self._embedding = embedding
             self._doc_store = doc_store
     
-    # 하이브리드 검색 
+    # 쿼리 임베딩 (L2 Semantic 캐시 조회용으로 서비스 계층에서 재사용)
+    async def embed_query(self, query: str) -> list[float]:
+        return await self._embedding.embed_query(query)
+
+    # 하이브리드 검색
     async def hybrid_search(
         self,
         query: str,
@@ -38,8 +42,8 @@ class QueryRepository:
         query_embedding = await self._embedding.embed_query(query)
         
         loop = asyncio.get_running_loop()
-        
-        # BM25, 벡터 검색 병렬 실행
+
+        # BM25, 벡터 검색 병렬 실행 : 한쪽 실패해도 남은 결과로 RRF 진행 (결함 격리)
         bm25_results, vec_results = await asyncio.gather(
             loop.run_in_executor(None, self._bm25.search, query, _BM25_N, doc_id),
             loop.run_in_executor(
@@ -49,7 +53,14 @@ class QueryRepository:
                 _VEC_N,
                 {"doc_id": doc_id} if doc_id else None,
             ),
+            return_exceptions=True,
         )
+
+        # 예외 수신 시 빈 리스트로 대체 -> 벡터 실패 시 BM25만, BM25 실패 시 벡터만 사용
+        if isinstance(bm25_results, Exception):
+            bm25_results = []
+        if isinstance(vec_results, Exception):
+            vec_results = []
 
         merged = self._rrf_merge(bm25_results, vec_results)
         # RRF 최소 점수 미만 노이즈 제거 후 top_k 선택

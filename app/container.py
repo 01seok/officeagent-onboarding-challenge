@@ -5,6 +5,7 @@ from app.infra.doc_store import DocumentStore
 from app.infra.embedding import EmbeddingService
 from app.infra.llm import LLMService
 from app.infra.bm25 import BM25Searcher
+from app.infra.cache import CacheService
 
 from app.api.document.repository import DocumentRepository
 from app.api.document.service import DocumentServiceImpl
@@ -37,12 +38,18 @@ class Container(containers.DeclarativeContainer):
         BM25Searcher,
         chroma=chroma_client,
     )
-    
+
     # LLM 호출 (Singleton, claude code sdk)
     llm_service = providers.Singleton(
         LLMService
     )
-    
+
+    # 캐시 (Singleton, Layer 1 + Layer 2)
+    cache_service = providers.Singleton(
+        CacheService,
+        redis_url=config.redis_url,
+    )
+
     # Repository
     document_repository = providers.Factory(
         DocumentRepository,
@@ -56,8 +63,9 @@ class Container(containers.DeclarativeContainer):
         repository=document_repository,
         embedding=embedding_service,
         bm25=bm25_searcher,
+        cache=cache_service,
     )
-    
+
     # Query
     query_repository = providers.Factory(
         QueryRepository,
@@ -71,4 +79,5 @@ class Container(containers.DeclarativeContainer):
         QueryServiceImpl,
         repository=query_repository,
         llm=llm_service,
+        cache=cache_service,
     )

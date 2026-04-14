@@ -1,5 +1,6 @@
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, StreamingResponse
+from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 
 from app.api.query.schema import QueryRequest, QueryResponse, SourceItem
 from app.api.query.service import QueryService
@@ -16,7 +17,7 @@ async def query_documents(
     service: QueryService = Depends(Provide[Container.query_service]),
 ):
     # 하이브리드 검색 -> LLM 답변 생성 (예외는 service에서 처리)
-    answer, has_relevant_content, chunks = await service.answer(
+    answer, has_relevant_content, chunks, cache_hit = await service.answer(
         request.question, request.top_k, request.doc_id
     )
 
@@ -25,7 +26,8 @@ async def query_documents(
             question=request.question,
             answer=answer,
             has_relevant_content=has_relevant_content,
-            
+            cache_hit=cache_hit,
+
             # 검색된 청크를 출처 형태로 변환하기
             sources=[
                 SourceItem(

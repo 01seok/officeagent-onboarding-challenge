@@ -16,7 +16,10 @@ async def lifespan(app: FastAPI):
     container.config.chroma_persist_dir.from_value(settings.CHROMA_PERSIST_DIR)
     container.config.doc_store_path.from_value(settings.DOC_STORE_PATH)
     container.config.embedding_model.from_value(settings.EMBEDDING_MODEL)
+    container.config.redis_url.from_value(settings.REDIS_URL)
     yield
+    # 종료 시 Redis 연결 정리
+    await container.cache_service().close()
 
 
 app = FastAPI(title="OfficeAgent Document Q&A API", lifespan=lifespan)

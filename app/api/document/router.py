@@ -59,5 +59,5 @@ async def delete_document(
     doc_id: str,
     service: DocumentService = Depends(Provide[Container.document_service]),
 ):
-    service.delete_document(doc_id)
+    await service.delete_document(doc_id)
     return BaseResponse.ok(None)

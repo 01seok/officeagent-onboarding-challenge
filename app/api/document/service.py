@@ -12,6 +12,7 @@ from app.api.document.repository import DocumentRepository
 from app.common.exception.app_exception import AppException
 from app.common.exception.error_code import ErrorCode
 from app.infra.bm25 import BM25Searcher
+from app.infra.cache import CacheService
 from app.infra.chunker import RecursiveTextChunker
 from app.infra.embedding import EmbeddingService
 from app.infra.parser import DocumentParser
@@ -31,15 +32,22 @@ class DocumentService(ABC):
         ...
 
     @abstractmethod
-    def delete_document(self, doc_id: str) -> None:
+    async def delete_document(self, doc_id: str) -> None:
         ...
 
 
 class DocumentServiceImpl(DocumentService):
-    def __init__(self, repository: DocumentRepository, embedding: EmbeddingService, bm25: BM25Searcher):
+    def __init__(
+        self,
+        repository: DocumentRepository,
+        embedding: EmbeddingService,
+        bm25: BM25Searcher,
+        cache: CacheService,
+    ):
         self._repo = repository
         self._embedding = embedding
         self._bm25 = bm25
+        self._cache = cache
         self._parser = DocumentParser()
         self._chunker = RecursiveTextChunker()
 
@@ -95,8 +103,10 @@ class DocumentServiceImpl(DocumentService):
     def list_documents(self) -> list[dict]:
         return self._repo.list_all()
 
-    def delete_document(self, doc_id: str) -> None:
+    async def delete_document(self, doc_id: str) -> None:
         if not self._repo.exists(doc_id):
             raise AppException(ErrorCode.DOCUMENT_NOT_FOUND)
         self._repo.delete(doc_id)
         self._bm25.invalidate()
+        # 문서 삭제 시 해당 doc_id로 저장된 캐시 엔트리 무효화
+        await self._cache.invalidate(doc_id)
