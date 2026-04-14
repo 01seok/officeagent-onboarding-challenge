@@ -23,6 +23,10 @@ Thumbs.db
 docker-compose.override.yml
 .omc/
 
+# 런타임 생성 데이터 (ChromaDB 영속화, 업로드 파일)
+data/
+uploads/
+
 # 개인 작업 문서
 ver1_claude.md
 officeagent_challenge_approach.md
