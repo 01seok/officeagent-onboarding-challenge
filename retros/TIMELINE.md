@@ -10,3 +10,4 @@
 | 2026-04-14 | [2026-04-14_2356_retro.md](2026-04-14_2356_retro.md) | 스트리밍 응답 구현 (LLM + SSE 엔드포인트), 프롬프트 목적별 분리 |
 | 2026-04-15 | [2026-04-15_0138_retro.md](2026-04-15_0138_retro.md) | 캐싱 레이어 서비스 통합, 결함 격리(gather fallback), 문서 삭제 무효화 연결 |
 | 2026-04-15 | [2026-04-15_0157_retro.md](2026-04-15_0157_retro.md) | Codex Adversarial Review 기반 캐시 역인덱스 누락 수정, 인덱스 Set TTL 추가 |
+| 2026-04-15 | [2026-04-15_0228_retro.md](2026-04-15_0228_retro.md) | claude-code-sdk MessageParseError 트러블슈팅 및 수정, end-to-end 통합 테스트 완료 |
