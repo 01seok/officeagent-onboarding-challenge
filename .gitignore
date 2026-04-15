@@ -14,6 +14,7 @@ venv/
 .vscode/
 .idea/
 .claude
+.codex/
 
 # OS
 .DS_Store
@@ -26,6 +27,7 @@ docker-compose.override.yml
 # 런타임 생성 데이터 (ChromaDB 영속화, 업로드 파일)
 data/
 uploads/
+dump.rdb
 
 # 개인 작업 문서
 ver1_claude.md

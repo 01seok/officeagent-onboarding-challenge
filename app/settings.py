@@ -7,6 +7,9 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "intfloat/multilingual-e5-small"
     UPLOAD_DIR: str = "./uploads"
     DOC_STORE_PATH: str = "./data/documents.json"
+    CODEX_BIN: str = "codex"
+    CODEX_MODEL: str = "gpt-5.4"
+    CODEX_SANDBOX: str = "read-only"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

@@ -1,0 +1,25 @@
+.venv
+.git
+.claude
+.githooks
+__pycache__/
+*.py[cod]
+.DS_Store
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# 로컬 실행/회고 산출물은 이미지 빌드에 불필요
+retros/
+retrobot/
+
+# 컨테이너 시작 시 compose 볼륨으로 마운트되거나 호스트에서만 쓰는 파일
+data/
+uploads/
+
+# 제출용 문서는 컨테이너 런타임에 필요 없음
+README.md
+ARCHITECTURE.md
+PROMPT_DESIGN.md
+CLAUDE.md
+AGENTS.md

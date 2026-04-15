@@ -17,6 +17,9 @@ async def lifespan(app: FastAPI):
     container.config.doc_store_path.from_value(settings.DOC_STORE_PATH)
     container.config.embedding_model.from_value(settings.EMBEDDING_MODEL)
     container.config.redis_url.from_value(settings.REDIS_URL)
+    container.config.codex_bin.from_value(settings.CODEX_BIN)
+    container.config.codex_model.from_value(settings.CODEX_MODEL)
+    container.config.codex_sandbox.from_value(settings.CODEX_SANDBOX)
     yield
     # 종료 시 Redis 연결 정리
     await container.cache_service().close()

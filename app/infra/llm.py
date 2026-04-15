@@ -1,111 +1,284 @@
+import asyncio
+import json
 import logging
 import re
+import tempfile
+from pathlib import Path
+from typing import AsyncGenerator
 
-from claude_code_sdk import query, ClaudeCodeOptions
-from claude_code_sdk._errors import MessageParseError
 from pydantic import BaseModel, ValidationError
 
 logger = logging.getLogger(__name__)
 
-# LLM이 반환해야 할 Json 구조, 파싱 실패 즉시 감지
+
+# LLM이 반환해야 할 구조화 응답
 class LLMAnswerResult(BaseModel):
     answer: str
     source_indices: list[int]
     has_relevant_content: bool
 
-# role 부여 + 규칙 + json 포맷을 담은 프롬프트
-_SYSTEM_PROMPT = """
+
+# Codex 최종 응답을 강제할 JSON Schema
+_ANSWER_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "answer": {"type": "string"},
+        "source_indices": {
+            "type": "array",
+            "items": {"type": "integer", "minimum": 0},
+        },
+        "has_relevant_content": {"type": "boolean"},
+    },
+    "required": ["answer", "source_indices", "has_relevant_content"],
+    "additionalProperties": False,
+}
+
+_STRUCTURED_INSTRUCTIONS = """
 당신은 제공된 문서를 기반으로만 답변하는 Q&A 어시스턴트입니다.
 규칙:
   1. 반드시 [Source N] 태그로 표시된 문서 내용만 근거로 사용하세요.
   2. 문서에 관련 내용이 없으면 has_relevant_content를 false로 설정하고, answer에 '제공된 문서에서 관련 내용을 찾을 수 없습니다.'라고 작성하세요.
-  3. 반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트는 포함하지 마세요:
-  {"answer": "답변 내용", "source_indices": [0, 1], "has_relevant_content": true}
-"""
+  3. source_indices에는 실제로 근거로 사용한 Source 번호만 담으세요.
+  4. 최종 응답은 JSON Schema를 반드시 만족해야 합니다.
+""".strip()
 
-# 스트리밍 전용 프롬프트 : JSON 강제 없이 자연스러운 문장으로 답변
-_STREAM_SYSTEM_PROMPT = """
+_STREAM_INSTRUCTIONS = """
 당신은 제공된 문서를 기반으로만 답변하는 Q&A 어시스턴트입니다.
-
 규칙:
-1. 반드시 [Source N] 태그로 표시된 문서 내용만 근거로 사용하세요.
-2. 문서에 관련 내용이 없으면 '제공된 문서에서 관련 내용을 찾을 수 없습니다.'라고 답하세요.
-3. 자연스러운 문장으로 간결하게 답변하세요.
-"""
+  1. 반드시 [Source N] 태그로 표시된 문서 내용만 근거로 사용하세요.
+  2. 문서에 관련 내용이 없으면 '제공된 문서에서 관련 내용을 찾을 수 없습니다.'라고 답하세요.
+  3. 자연스러운 문장으로 간결하게 답변하세요.
+""".strip()
+
 
 class LLMService:
-    
+    # Codex CLI를 감싸는 LLM 어댑터
+    def __init__(
+        self,
+        codex_bin: str = "codex",
+        model: str | None = None,
+        sandbox: str = "read-only",
+    ) -> None:
+        self._codex_bin = codex_bin
+        self._model = model
+        self._sandbox = sandbox
+
+    # 일반 질의응답 : 구조화 응답을 받아 Pydantic으로 파싱
     async def generate_answer(
         self, question: str, chunks: list[dict]
     ) -> LLMAnswerResult:
-        prompt = self._build_user_prompt(question, chunks)
-        raw_parts: list[str] = []
+        prompt = self._build_prompt(question, chunks, _STRUCTURED_INSTRUCTIONS)
+        raw = await self._run_exec(prompt, output_schema=_ANSWER_SCHEMA)
+        return self._parse_response(raw)
 
-        try:
-            # query()는 async generator, 메시지를 스트리밍으로 수신하므로 async for로 소비
-            async for message in query(
-                prompt=prompt,
-                options=ClaudeCodeOptions(
-                    system_prompt=_SYSTEM_PROMPT,
-                    max_turns=1,  # 단발성 응답만 필요, 다음 턴 없음
-                ),
-            ):
-                # AssistantMessage는 content가 블록 리스트로 구성
-                if hasattr(message, "content") and isinstance(message.content, list):
-                    for block in message.content:
-                        if hasattr(block, "text"):
-                            raw_parts.append(block.text)
-        except MessageParseError as e:
-            # SDK가 rate_limit_event 등 informational 메시지 타입을 case에 안 넣어서 예외 발생
-            # assistant 메시지가 먼저 왔다면 raw_parts에 답변이 이미 쌓였을 수 있어 그대로 파싱
-            logger.warning("claude-code-sdk MessageParseError, 누적된 응답으로 파싱 시도: %s", e)
+    # 스트리밍 질의응답 : Codex JSON 이벤트에서 텍스트만 추출
+    async def generate_answer_stream(
+        self, question: str, chunks: list[dict]
+    ) -> AsyncGenerator[str, None]:
+        prompt = self._build_prompt(question, chunks, _STREAM_INSTRUCTIONS)
+        async for token in self._run_exec_stream(prompt):
+            yield token
 
-        return self._parse_response("".join(raw_parts))
-
-    def _build_user_prompt(self, question: str, chunks: list[dict]) -> str:
-        # 청크마다 번호를 붙여 LLM이 source_indices로 참조할 수 있게 구성
+    # 검색된 청크를 Source 블록으로 붙여 Codex에 전달할 최종 프롬프트 생성
+    def _build_prompt(
+        self,
+        question: str,
+        chunks: list[dict],
+        instructions: str,
+    ) -> str:
         sources = "\n\n".join(
             f"[Source {i}] 문서: {c['filename']}\n---\n{c['text']}\n---"
             for i, c in enumerate(chunks)
         )
-        return f"{sources}\n\n질문: {question}"
+        return f"{instructions}\n\n{sources}\n\n질문: {question}"
 
+    # codex exec 일반 모드 호출 : stdout의 마지막 메시지를 최종 응답으로 사용
+    async def _run_exec(
+        self,
+        prompt: str,
+        output_schema: dict | None = None,
+    ) -> str:
+        command, schema_path = self._build_exec_command(
+            prompt,
+            output_schema=output_schema,
+        )
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout, stderr = await process.communicate()
+        finally:
+            if schema_path is not None:
+                Path(schema_path).unlink(missing_ok=True)
+
+        stderr_text = stderr.decode("utf-8", errors="replace").strip()
+        if stderr_text:
+            # 진행 로그와 fallback 경고는 stderr로만 남기고 응답 파싱에는 쓰지 않음
+            logger.info("codex exec stderr: %s", self._shrink(stderr_text))
+
+        raw_output = stdout.decode("utf-8", errors="replace").strip()
+
+        if process.returncode != 0:
+            logger.warning(
+                "codex exec failed with code %s: %s",
+                process.returncode,
+                self._shrink(stderr_text),
+            )
+            if not raw_output:
+                raise RuntimeError("codex exec failed without a final response")
+
+        if not raw_output:
+            raise RuntimeError("codex exec returned an empty response")
+
+        return raw_output
+
+    # codex exec --json 호출 : agent_message 이벤트의 delta만 SSE로 전달
+    async def _run_exec_stream(self, prompt: str) -> AsyncGenerator[str, None]:
+        command, _ = self._build_exec_command(prompt, json_output=True)
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        stderr_task = asyncio.create_task(self._read_stream(process.stderr))
+        emitted: dict[str, str] = {}
+        yielded_any = False
+
+        try:
+            assert process.stdout is not None
+            while True:
+                raw_line = await process.stdout.readline()
+                if not raw_line:
+                    break
+
+                line = raw_line.decode("utf-8", errors="replace").strip()
+                if not line:
+                    continue
+
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                # 같은 메시지가 누적 갱신되므로 새로 늘어난 부분만 전달
+                for token in self._extract_stream_tokens(event, emitted):
+                    yielded_any = True
+                    yield token
+
+            await process.wait()
+        finally:
+            stderr_text = await stderr_task
+
+        if stderr_text:
+            logger.info("codex exec stream stderr: %s", self._shrink(stderr_text))
+
+        if process.returncode != 0:
+            logger.warning(
+                "codex exec stream failed with code %s: %s",
+                process.returncode,
+                self._shrink(stderr_text),
+            )
+            if not yielded_any:
+                yield "답변을 생성할 수 없습니다."
+
+    # 실행 모드에 맞는 codex exec 명령어 조립
+    def _build_exec_command(
+        self,
+        prompt: str,
+        *,
+        output_schema: dict | None = None,
+        json_output: bool = False,
+    ) -> tuple[list[str], str | None]:
+        command = [
+            self._codex_bin,
+            "exec",
+            "--ephemeral",
+            "--sandbox",
+            self._sandbox,
+            "--skip-git-repo-check",
+        ]
+
+        if self._model:
+            command.extend(["--model", self._model])
+
+        if json_output:
+            command.append("--json")
+
+        schema_path: str | None = None
+        if output_schema is not None:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                suffix=".json",
+                encoding="utf-8",
+                delete=False,
+            ) as handle:
+                json.dump(output_schema, handle, ensure_ascii=False)
+                schema_path = handle.name
+
+            command.extend(["--output-schema", schema_path])
+
+        command.append(prompt)
+        return command, schema_path
+
+    # stderr를 끝까지 읽어 subprocess 교착 상태를 방지
+    async def _read_stream(self, stream: asyncio.StreamReader | None) -> str:
+        if stream is None:
+            return ""
+
+        chunks: list[str] = []
+        while True:
+            raw_line = await stream.readline()
+            if not raw_line:
+                break
+            chunks.append(raw_line.decode("utf-8", errors="replace"))
+        return "".join(chunks).strip()
+
+    # JSONL 이벤트에서 agent_message 텍스트 delta만 추출
+    def _extract_stream_tokens(
+        self,
+        event: dict,
+        emitted: dict[str, str],
+    ) -> list[str]:
+        item = event.get("item")
+        if not isinstance(item, dict) or item.get("type") != "agent_message":
+            return []
+
+        item_id = str(item.get("id", "final"))
+        text = item.get("text")
+        if not isinstance(text, str) or not text:
+            return []
+
+        previous = emitted.get(item_id, "")
+        emitted[item_id] = text
+
+        if text.startswith(previous):
+            delta = text[len(previous):]
+        else:
+            delta = text
+
+        return [delta] if delta else []
+
+    # stdout에서 JSON 객체를 찾아 구조화 응답으로 파싱
     def _parse_response(self, raw: str) -> LLMAnswerResult:
-        # LLM이 JSON 앞뒤에 설명이나 코드펜스를 붙이는 경우를 대비해 중괄호 블록만 추출
         match = re.search(r"\{.*\}", raw, re.DOTALL)
         if match:
             try:
                 return LLMAnswerResult.model_validate_json(match.group())
             except (ValidationError, ValueError):
                 pass
-        # 파싱 완전 실패 시 원본 텍스트를 answer로 담아 반환
+
         return LLMAnswerResult(
             answer=raw.strip() or "답변을 생성할 수 없습니다.",
             source_indices=[],
-            # JSON 파싱 실패한 응답은 근거 있는 답변으로 분류하지 않음
             has_relevant_content=False,
         )
 
-
-    async def generate_answer_stream(
-        self, question: str, chunks: list[dict]
-    ):
-        # async generator, 토큰이 올 때마다 즉시 yield (모아서 반환하지 않음)
-        prompt = self._build_user_prompt(question, chunks)
-
-        try:
-            async for message in query(
-                prompt=prompt,
-                options=ClaudeCodeOptions(
-                    system_prompt=_STREAM_SYSTEM_PROMPT,
-                    max_turns=1,
-                ),
-            ):
-                if hasattr(message, "content") and isinstance(message.content, list):
-                    for block in message.content:
-                        # 텍스트 블록이 있을 때만 yield, 빈 문자열은 제외
-                        if hasattr(block, "text") and block.text:
-                            yield block.text
-        except MessageParseError as e:
-            # SDK가 rate_limit_event 등 informational 타입을 모르는 경우, 스트림 종료만 처리
-            logger.warning("claude-code-sdk MessageParseError, 스트리밍 중단: %s", e)
+    # 로그 폭주를 막기 위해 stderr를 잘라서 남김
+    def _shrink(self, text: str, limit: int = 1500) -> str:
+        trimmed = text.strip()
+        if len(trimmed) <= limit:
+            return trimmed
+        return trimmed[:limit] + "...(truncated)"

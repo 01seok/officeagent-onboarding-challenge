@@ -8,11 +8,13 @@ services:
       - CHROMA_PERSIST_DIR=/app/data/chroma
       - UPLOAD_DIR=/app/uploads
       - DOC_STORE_PATH=/app/data/documents.json
+      - CODEX_MODEL=gpt-5.4
+      - CODEX_SANDBOX=read-only
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
-      # claude CLI 인증 정보 마운트 (호스트의 Claude Pro/Max 구독 인증 사용)
-      - ~/.claude:/root/.claude:ro
+      # Codex CLI 인증 정보 마운트 (호스트의 ChatGPT/Codex 인증 사용)
+      - ~/.codex:/root/.codex:ro
     depends_on:
       redis:
         condition: service_healthy

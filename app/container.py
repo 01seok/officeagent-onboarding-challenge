@@ -39,9 +39,12 @@ class Container(containers.DeclarativeContainer):
         chroma=chroma_client,
     )
 
-    # LLM 호출 (Singleton, claude code sdk)
+    # LLM 호출 (Singleton, Codex CLI)
     llm_service = providers.Singleton(
-        LLMService
+        LLMService,
+        codex_bin=config.codex_bin,
+        model=config.codex_model,
+        sandbox=config.codex_sandbox,
     )
 
     # 캐시 (Singleton, Layer 1 + Layer 2)

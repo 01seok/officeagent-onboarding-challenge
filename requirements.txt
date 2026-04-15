@@ -9,4 +9,3 @@ rank-bm25
 sentence-transformers
 PyPDF2
 markdown
-claude-code-sdk
