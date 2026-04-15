@@ -6,26 +6,50 @@
 
 ---
 
-## 실행 방법
+## 빠른 실행
 
 ```bash
-# 사전 요구: Python 3.12+, Redis, Node.js (Codex CLI용)
 brew install redis
 npm install -g @openai/codex
-
-# 가상환경 및 의존성 설치
-python -m venv .venv
+python3.13 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-
-# Redis 기동
 redis-server --daemonize yes
-
-# API 서버 실행
 uvicorn app.main:app --port 8000
 ```
 
-API 서버는 `http://localhost:8000`에서 가동됩니다. ChatGPT/Codex 인증이 로컬 `~/.codex`에 설정되어 있어야 LLM 호출이 정상 동작합니다.
+- 서버 주소: `http://localhost:8000`
+- 확인: `curl http://localhost:8000/health`
+- 로컬 검증은 `python3.13`으로 진행했고, Docker 이미지는 `python:3.12-slim` 기준입니다.
+- LLM 호출을 쓰려면 로컬 `~/.codex`에 Codex 인증이 설정되어 있어야 합니다.
+
+---
+
+## 평가용 추가 확인
+
+선택적으로 아래 항목까지 확인하면 업로드부터 질의응답까지 한 번에 검증할 수 있습니다.
+
+### Docker 실행 (선택)
+
+```bash
+docker compose up -d
+```
+
+- 첫 빌드는 Python 의존성 + 임베딩 모델 다운로드 때문에 시간이 걸릴 수 있습니다.
+- 기동 확인: `curl http://localhost:8000/health`
+
+### API 확인 (선택)
+
+```bash
+# 1. 문서 업로드
+curl -X POST http://localhost:8000/api/v1/documents \
+  -F "file=@sample-docs/company-policy.txt"
+
+# 2. 질의
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "연차는 어떻게 발생하나요?", "top_k": 5}'
+```
 
 ---
 
@@ -57,19 +81,6 @@ DELETE /api/v1/documents/{doc_id} # 문서 삭제 + 연관 캐시 무효화
 ```
 POST /api/v1/query                # RAG 질의응답 (JSON 응답)
 POST /api/v1/query/stream         # SSE 스트리밍 응답
-```
-
-### 사용 예시
-
-```bash
-# 1. 문서 업로드
-curl -X POST http://localhost:8000/api/v1/documents \
-  -F "file=@sample-docs/company-policy.txt"
-
-# 2. 질의
-curl -X POST http://localhost:8000/api/v1/query \
-  -H "Content-Type: application/json" \
-  -d '{"question": "연차는 어떻게 발생하나요?", "top_k": 5}'
 ```
 
 응답 예시:
