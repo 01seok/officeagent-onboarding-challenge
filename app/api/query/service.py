@@ -4,8 +4,6 @@ from typing import AsyncGenerator
 
 from app.api.query.domain import ChunkResult
 from app.api.query.repository import QueryRepository
-from app.common.exception.app_exception import AppException
-from app.common.exception.error_code import ErrorCode
 from app.infra.cache import CacheService
 from app.infra.llm import LLMService
 
@@ -50,8 +48,19 @@ class QueryServiceImpl(QueryService):
         chunks = await self._repository.hybrid_search(question, top_k, doc_id)
 
         if not chunks:
-            # 검색 인프라 레벨 실패, 색인이 비어있거나 문서가 없는 상태
-            raise AppException(ErrorCode.NO_RELEVANT_CONTENT)
+            # 검색은 정상 수행됐지만 질문에 대응되는 근거 청크를 찾지 못한 상태
+            no_content = {
+                "answer": "제공된 문서에서 관련 내용을 찾을 수 없습니다.",
+                "has_relevant_content": False,
+                "sources": [],
+            }
+            # no-content 결과도 반복 호출을 줄이기 위해 캐시에 저장
+            exact_key = CacheService._exact_key(question, doc_id)
+            asyncio.create_task(self._cache.set_exact(question, doc_id, no_content))
+            asyncio.create_task(
+                self._cache.set_semantic(query_embedding, doc_id, exact_key, no_content)
+            )
+            return no_content["answer"], False, [], False
 
         # 5단계 LLM 컨텍스트 구성
         context = [{"filename": c.filename, "text": c.text} for c in chunks]
@@ -80,7 +89,21 @@ class QueryServiceImpl(QueryService):
             chunks[i] for i in dict.fromkeys(result.source_indices)
             if i < len(chunks)
         ]
-        # LLM이 source_indices를 비워 반환하면 근거 없음 신호, 전체 청크를 출처로 내리지 않음
+        # LLM이 source_indices를 주지 못했다면, 근거 있는 답변으로 보지 않음 (할루시네이션 방지)
+        if not referenced:
+            no_content = {
+                "answer": "제공된 문서에서 관련 내용을 찾을 수 없습니다.",
+                "has_relevant_content": False,
+                "sources": [],
+            }
+            # 출처 없는 응답도 반복 호출을 줄이기 위해 캐시에 저장
+            exact_key = CacheService._exact_key(question, doc_id)
+            asyncio.create_task(self._cache.set_exact(question, doc_id, no_content))
+            asyncio.create_task(
+                self._cache.set_semantic(query_embedding, doc_id, exact_key, no_content)
+            )
+            return no_content["answer"], False, [], False
+
         sources = referenced
 
         # 9단계 L1, L2 캐시 저장 (직렬화 후 fire-and-forget)

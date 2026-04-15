@@ -27,6 +27,7 @@ class CacheService:
         return f"cache:exact:{digest}"
 
     @staticmethod
+    # 실제 운영 환경으로 확장한다면 key 충돌 가능성 있으니 suffix 확장
     def _sem_key(doc_id: str | None, exact_key: str) -> str:
         suffix = exact_key[-8:]
         scope = doc_id or "all"
@@ -121,18 +122,32 @@ class CacheService:
             logger.warning("semantic cache set failed: %s", e)
 
     # 캐시 무효화
-    async def invalidate(self, doc_id: str) -> None:
-        # 문서 삭제/수정 시 해당 doc_id 캐시 + 전체 문서 대상(__all__) 캐시 일괄 제거
+    # 신규 업로드는 전체 문서 질의만 바꾸고,
+    # 삭제/수정은 해당 문서 질의와 전체 문서 질의를 같이 바꿈
+    async def invalidate(self, doc_id: str | None) -> None:
         try:
-            keys_to_clear = [self._doc_index_key(doc_id), self._doc_index_key(None)]
+            # 신규 업로드는 전체 문서 범위 캐시가 삭제 대상
+            keys_to_clear = [self._doc_index_key(None)]
+            
+            # 삭제, 수정으로 특정 문서가 바뀌었으면 그 문서 전용 캐시도 삭제 대상
+            if doc_id is not None:
+                keys_to_clear.insert(0, self._doc_index_key(doc_id))
+
+            # redis 명령 한 번에 처리하기 위한 pipeline
             pipe = self._redis.pipeline()
             for index_key in keys_to_clear:
                 cache_keys = await self._redis.smembers(index_key)
                 for k in cache_keys:
                     pipe.delete(k)
+                    
+                # 개별 캐시 다 지운 뒤 인덱스 set 자체도 삭제
                 pipe.delete(index_key)
+            
+            # 예약한 삭제 작업 한 번에 실행
             await pipe.execute()
+            
         except Exception as e:
+            # 캐시 삭제 실패해도 문서 처리를 깨면 안되니 경고만 남기기
             logger.warning("cache invalidate failed: %s", e)
 
     # 연결 종료

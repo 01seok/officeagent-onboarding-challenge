@@ -1,10 +1,15 @@
 import asyncio
+import logging
 
 from app.api.query.domain import ChunkResult
+from app.common.exception.app_exception import AppException
+from app.common.exception.error_code import ErrorCode
 from app.infra.bm25 import BM25Searcher
 from app.infra.chroma import ChromaClient
 from app.infra.doc_store import DocumentStore
 from app.infra.embedding import EmbeddingService
+
+logger = logging.getLogger(__name__)
 
 # 검색 설정 상수
 _BM25_N = 100   # BM25 후보 수
@@ -56,10 +61,23 @@ class QueryRepository:
             return_exceptions=True,
         )
 
-        # 예외 수신 시 빈 리스트로 대체 -> 벡터 실패 시 BM25만, BM25 실패 시 벡터만 사용
-        if isinstance(bm25_results, Exception):
+        bm25_failed = isinstance(bm25_results, Exception)
+        vec_failed = isinstance(vec_results, Exception)
+
+        # 한쪽 실패는 남은 검색기로 계속 진행
+        if bm25_failed:
+            logger.warning("BM25 검색 실패, Vector 결과만 사용: %r", bm25_results)
+        if vec_failed:
+            logger.warning("Vector 검색 실패, BM25 결과만 사용: %r", vec_results)
+
+        # 양쪽 모두 실패면 검색 실패로 처리
+        if bm25_failed and vec_failed:
+            raise AppException(ErrorCode.SEARCH_FAILED)
+
+        # 실패한 쪽만 빈 결과로 치환
+        if bm25_failed:
             bm25_results = []
-        if isinstance(vec_results, Exception):
+        if vec_failed:
             vec_results = []
 
         merged = self._rrf_merge(bm25_results, vec_results)
@@ -92,7 +110,7 @@ class QueryRepository:
 
         for rank, chunk in enumerate(bm25_results):
             cid = chunk["chunk_id"]
-            # RRF 공식: 가중치 / (k + rank + 1)
+            # RRF 공식 : 가중치 / (k + rank + 1)
             scores[cid] = scores.get(cid, 0.0) + _BM25_W / (_RRF_K + rank + 1)
             chunk_map[cid] = chunk
 

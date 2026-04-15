@@ -92,6 +92,8 @@ class DocumentServiceImpl(DocumentService):
             )
             self._repo.update_status(doc_id, "completed", chunk_count=len(chunks))
             self._bm25.invalidate()
+            # 새 문서가 검색 가능해진 시점이므로 전체 문서 질의 캐시를 비우기
+            await self._cache.invalidate(None)
 
         except AppException:
             self._repo.update_status(doc_id, "failed")
