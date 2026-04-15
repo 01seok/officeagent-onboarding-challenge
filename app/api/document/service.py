@@ -20,7 +20,7 @@ from app.infra.parser import DocumentParser
 
 class DocumentService(ABC):
     @abstractmethod
-    async def upload(self, file: UploadFile) -> Document:
+    async def upload(self, file: UploadFile, content_type: str) -> Document:
         ...
 
     @abstractmethod
@@ -51,11 +51,12 @@ class DocumentServiceImpl(DocumentService):
         self._parser = DocumentParser()
         self._chunker = RecursiveTextChunker()
 
-    async def upload(self, file: UploadFile) -> Document:
+    # 업로드 메타데이터 저장 : 라우터에서 정규화한 content_type을 그대로 사용
+    async def upload(self, file: UploadFile, content_type: str) -> Document:
         doc = Document(
             doc_id=str(uuid.uuid4()),
             filename=file.filename or "unknown",
-            content_type=file.content_type or "text/plain",
+            content_type=content_type,
             status="processing",
             created_at=datetime.utcnow().isoformat(),
         )
