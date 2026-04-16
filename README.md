@@ -37,6 +37,8 @@ docker compose up -d
 
 - 첫 빌드는 Python 의존성 + 임베딩 모델 다운로드 때문에 시간이 걸릴 수 있습니다.
 - 기동 확인: `curl http://localhost:8000/health`
+- Docker 질의까지 확인하려면 호스트 `~/.codex`에 인증이 되어 있어야 합니다.
+- 컨테이너는 호스트 `~/.codex`에서 인증/설정만 읽고, 세션/캐시는 Docker 볼륨에 기록합니다.
 
 ### API 확인 (선택)
 

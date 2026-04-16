@@ -10,11 +10,22 @@ services:
       - DOC_STORE_PATH=/app/data/documents.json
       - CODEX_MODEL=gpt-5.4
       - CODEX_SANDBOX=read-only
+      - CODEX_HOME=/root/.codex
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
-      # Codex CLI 인증 정보 마운트 (호스트의 ChatGPT/Codex 인증 사용)
-      - ~/.codex:/root/.codex:ro
+      # Codex CLI 런타임 세션/캐시는 컨테이너 전용 writable 볼륨에 저장
+      - codex_home:/root/.codex
+      # 호스트 인증/설정은 읽기 전용으로만 참조
+      - ~/.codex:/root/.codex-host:ro
+    command: >
+      sh -c "
+      mkdir -p /root/.codex &&
+      if [ -f /root/.codex-host/auth.json ]; then cp /root/.codex-host/auth.json /root/.codex/auth.json; fi &&
+      if [ -f /root/.codex-host/config.toml ]; then cp /root/.codex-host/config.toml /root/.codex/config.toml; fi &&
+      if [ -f /root/.codex-host/installation_id ]; then cp /root/.codex-host/installation_id /root/.codex/installation_id; fi &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8000
+      "
     depends_on:
       redis:
         condition: service_healthy
@@ -28,3 +39,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+
+volumes:
+  codex_home:
