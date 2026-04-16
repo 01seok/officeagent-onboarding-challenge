@@ -11,3 +11,4 @@
 | 2026-04-15 | [2026-04-15_0138_retro.md](2026-04-15_0138_retro.md) | 캐싱 레이어 서비스 통합, 결함 격리(gather fallback), 문서 삭제 무효화 연결 |
 | 2026-04-15 | [2026-04-15_0157_retro.md](2026-04-15_0157_retro.md) | Codex Adversarial Review 기반 캐시 역인덱스 누락 수정, 인덱스 Set TTL 추가 |
 | 2026-04-15 | [2026-04-15_0228_retro.md](2026-04-15_0228_retro.md) | claude-code-sdk MessageParseError 트러블슈팅 및 수정, end-to-end 통합 테스트 완료 |
+| 2026-04-17 | [2026-04-17_0043_retro.md](2026-04-17_0043_retro.md) | 제출 직전 품질 보강 — 문서 산출물 정리, Codex/Docker 실행 경로 안정화, partial retrieval fallback·캐시 정책 보완 |
