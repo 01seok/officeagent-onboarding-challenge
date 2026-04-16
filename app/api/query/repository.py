@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from app.api.query.domain import ChunkResult
+from app.api.query.domain import ChunkResult, HybridSearchOutcome, RetrievalMode
 from app.common.exception.app_exception import AppException
 from app.common.exception.error_code import ErrorCode
 from app.infra.bm25 import BM25Searcher
@@ -18,6 +18,7 @@ _RRF_K =  60    # RRF 상수 (높을수록 순위 차이 완화됨)
 _BM25_W = 0.3   # BM25 가중치
 _VEC_W = 0.7    # 벡터 가중치
 _MIN_SCORE = 0.007  # min RRF score (노이즈 제거)
+_FALLBACK_TOP_N = 3  # 단일 검색기로 degrade되면 상위 몇 개만 LLM에 전달
 
 
 class QueryRepository:
@@ -43,7 +44,7 @@ class QueryRepository:
         query: str,
         top_k: int,
         doc_id: str | None = None
-    ) -> list[ChunkResult]:
+    ) -> HybridSearchOutcome:
         query_embedding = await self._embedding.embed_query(query)
         
         loop = asyncio.get_running_loop()
@@ -81,8 +82,8 @@ class QueryRepository:
             vec_results = []
 
         merged = self._rrf_merge(bm25_results, vec_results)
-        # RRF 최소 점수 미만 노이즈 제거 후 top_k 선택
-        top = [r for r in merged if r["score"] >= _MIN_SCORE][:top_k]
+        mode = self._resolve_mode(bm25_failed=bm25_failed, vec_failed=vec_failed)
+        top = self._select_candidates(merged, top_k=top_k, mode=mode)
 
         results: list[ChunkResult] = []
         for r in top:
@@ -98,7 +99,7 @@ class QueryRepository:
                     chunk_index=meta.get("chunk_index", 0),
                 )
             )
-        return results
+        return HybridSearchOutcome(chunks=results, mode=mode)
 
     def _rrf_merge(
         self,
@@ -121,3 +122,32 @@ class QueryRepository:
 
         ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         return [{**chunk_map[cid], "score": score} for cid, score in ranked]
+
+    # 어떤 검색기로 결과를 만들었는지 명시적으로 분류
+    def _resolve_mode(
+        self,
+        *,
+        bm25_failed: bool,
+        vec_failed: bool,
+    ) -> RetrievalMode:
+        if vec_failed:
+            return RetrievalMode.BM25_ONLY
+        if bm25_failed:
+            return RetrievalMode.VECTOR_ONLY
+        return RetrievalMode.HYBRID
+
+    # 하이브리드 점수와 단일 검색기 degrade 상황의 컷오프를 분리
+    def _select_candidates(
+        self,
+        merged: list[dict],
+        *,
+        top_k: int,
+        mode: RetrievalMode,
+    ) -> list[dict]:
+        if mode is RetrievalMode.HYBRID:
+            # 두 검색기가 모두 살아있을 때만 하이브리드 전용 min score 사용
+            return [r for r in merged if r["score"] >= _MIN_SCORE][:top_k]
+
+        # 한쪽 검색기만 살아있으면 hybrid threshold 대신 상위 몇 개만 보수적으로 전달
+        fallback_k = min(top_k, _FALLBACK_TOP_N)
+        return merged[:fallback_k]

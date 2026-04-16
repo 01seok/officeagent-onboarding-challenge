@@ -45,7 +45,8 @@ class QueryServiceImpl(QueryService):
             return cached["answer"], cached["has_relevant_content"], sources, True
 
         # 4단계 캐시 미스, 하이브리드 검색 (BM25 + Vector + RRF)
-        chunks = await self._repository.hybrid_search(question, top_k, doc_id)
+        search_outcome = await self._repository.hybrid_search(question, top_k, doc_id)
+        chunks = search_outcome.chunks
 
         if not chunks:
             # 검색은 정상 수행됐지만 질문에 대응되는 근거 청크를 찾지 못한 상태
@@ -54,11 +55,13 @@ class QueryServiceImpl(QueryService):
                 "has_relevant_content": False,
                 "sources": [],
             }
-            # no-content 결과도 반복 호출을 줄이기 위해 캐시에 저장
-            exact_key = CacheService._exact_key(question, doc_id)
-            asyncio.create_task(self._cache.set_exact(question, doc_id, no_content))
-            asyncio.create_task(
-                self._cache.set_semantic(query_embedding, doc_id, exact_key, no_content)
+            # no-content는 false negative 전파를 막기 위해 exact cache만 저장
+            self._schedule_cache_write(
+                question=question,
+                doc_id=doc_id,
+                query_embedding=query_embedding,
+                data=no_content,
+                store_semantic=False,
             )
             return no_content["answer"], False, [], False
 
@@ -76,11 +79,13 @@ class QueryServiceImpl(QueryService):
                 "has_relevant_content": False,
                 "sources": [],
             }
-            # 캐시 저장은 fire-and-forget, 응답 지연에 영향 주지 않음
-            exact_key = CacheService._exact_key(question, doc_id)
-            asyncio.create_task(self._cache.set_exact(question, doc_id, cache_data))
-            asyncio.create_task(
-                self._cache.set_semantic(query_embedding, doc_id, exact_key, cache_data)
+            # no-content는 partial failure 여부와 무관하게 semantic cache에 퍼뜨리지 않음
+            self._schedule_cache_write(
+                question=question,
+                doc_id=doc_id,
+                query_embedding=query_embedding,
+                data=cache_data,
+                store_semantic=False,
             )
             return result.answer, False, [], False
 
@@ -96,11 +101,13 @@ class QueryServiceImpl(QueryService):
                 "has_relevant_content": False,
                 "sources": [],
             }
-            # 출처 없는 응답도 반복 호출을 줄이기 위해 캐시에 저장
-            exact_key = CacheService._exact_key(question, doc_id)
-            asyncio.create_task(self._cache.set_exact(question, doc_id, no_content))
-            asyncio.create_task(
-                self._cache.set_semantic(query_embedding, doc_id, exact_key, no_content)
+            # 출처가 비어 있는 응답도 semantic cache로 일반화하지 않음
+            self._schedule_cache_write(
+                question=question,
+                doc_id=doc_id,
+                query_embedding=query_embedding,
+                data=no_content,
+                store_semantic=False,
             )
             return no_content["answer"], False, [], False
 
@@ -122,10 +129,13 @@ class QueryServiceImpl(QueryService):
                 for c in sources
             ],
         }
-        exact_key = CacheService._exact_key(question, doc_id)
-        asyncio.create_task(self._cache.set_exact(question, doc_id, cache_data))
-        asyncio.create_task(
-            self._cache.set_semantic(query_embedding, doc_id, exact_key, cache_data)
+        self._schedule_cache_write(
+            question=question,
+            doc_id=doc_id,
+            query_embedding=query_embedding,
+            data=cache_data,
+            # semantic cache는 근거가 있는 positive 응답에만 사용
+            store_semantic=not search_outcome.is_partial_failure,
         )
 
         return result.answer, True, sources, False
@@ -135,7 +145,8 @@ class QueryServiceImpl(QueryService):
         self, question: str, top_k: int, doc_id: str | None
     ) -> AsyncGenerator[str, None]:
         # 1단계 : 스트리밍도 동일한 하이브리드 검색으로 관련 청크 확보
-        chunks = await self._repository.hybrid_search(question, top_k, doc_id)
+        search_outcome = await self._repository.hybrid_search(question, top_k, doc_id)
+        chunks = search_outcome.chunks
 
         if not chunks:
             # 검색 결과 없으면 안내 문구 1회 yield하고 종료
@@ -148,3 +159,21 @@ class QueryServiceImpl(QueryService):
         # 3단계 : LLM 토큰을 그대로 통과 (가공 없음)
         async for token in self._llm.generate_answer_stream(question, context):
             yield token
+
+    # exact / semantic 캐시 저장 정책을 한곳에 모아 중복을 줄임
+    def _schedule_cache_write(
+        self,
+        *,
+        question: str,
+        doc_id: str | None,
+        query_embedding: list[float],
+        data: dict,
+        store_semantic: bool,
+    ) -> None:
+        exact_key = CacheService._exact_key(question, doc_id)
+        asyncio.create_task(self._cache.set_exact(question, doc_id, data))
+
+        if store_semantic:
+            asyncio.create_task(
+                self._cache.set_semantic(query_embedding, doc_id, exact_key, data)
+            )
