@@ -135,7 +135,7 @@ app/
 └── infra/         # 인프라 어댑터 (ChromaDB, Redis, 임베딩, LLM, BM25)
 ```
 
-- **서비스 계층(app/api/**/service.py)은 인프라 구현체를 직접 import하지 않습니다.** DI로 주입받아 사용하므로 인프라 교체 가능성이 확보됩니다. 예컨대 ChromaDB를 Qdrant로 바꾸더라도 `QueryRepository` 서명만 유지하면 서비스 레이어는 변경되지 않습니다.
+- **서비스 계층(app/api/**/service.py)은 인프라 구현체를 직접 import하지 않습니다. DI로 주입받아 사용하므로 인프라 교체 가능성이 확보됩니다. 예컨대 ChromaDB를 Qdrant로 바꾸더라도 `QueryRepository` 서명만 유지하면 서비스 레이어는 변경되지 않습니다.
 - **router -> service -> repository** 순으로 의존 방향이 고정되어 있고, 역방향 의존은 없습니다.
 - **ABC로 서비스 계약을 명시**: `DocumentService`, `QueryService`를 추상 클래스로 두어 Impl과 분리. 테스트 시 Mock Impl로 교체 가능.
 
