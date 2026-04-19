@@ -18,10 +18,21 @@ redis-server --daemonize yes
 uvicorn app.main:app --port 8000
 ```
 
-- 서버 주소: `http://localhost:8000`
-- 확인: `curl http://localhost:8000/health`
+- 서버 주소: `http://127.0.0.1:8000`
+- 확인: `curl http://127.0.0.1:8000/health`
+- 데모 화면: `http://127.0.0.1:8000/demo`
 - 로컬 검증은 `python3.13`으로 진행했고, Docker 이미지는 `python:3.12-slim` 기준입니다.
 - LLM 호출을 쓰려면 로컬 `~/.codex`에 Codex 인증이 설정되어 있어야 합니다.
+- macOS 환경에서는 `localhost`가 IPv6(`::1`)로 해석될 수 있어, 로컬 접속 주소는 `127.0.0.1` 기준으로 안내합니다.
+
+---
+
+## 면접용 데모 UI
+
+- 기본 실행: 백엔드 서버를 띄운 뒤 `http://127.0.0.1:8000/demo`로 접속하면 됩니다.
+- UI 개발용: 백엔드를 `8000` 포트로 띄운 뒤 저장소 루트에서 `npm install`, `npm run dev`
+- UI 재빌드: 저장소 루트에서 `npm run build`
+- 데모 UI 소스는 `demo-ui/`, FastAPI가 실제로 서빙하는 빌드 결과는 `app/demo_assets/`에 있습니다.
 
 ---
 

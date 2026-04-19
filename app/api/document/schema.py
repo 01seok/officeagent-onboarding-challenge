@@ -10,5 +10,6 @@ class DocumentUploadResponse(BaseModel):
 class DocumentListItem(BaseModel):
     doc_id: str
     filename: str
+    status: str
     chunk_count: int
     created_at: str

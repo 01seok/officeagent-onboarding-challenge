@@ -1,7 +1,9 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 from app.container import Container
 from app.settings import settings
@@ -30,12 +32,21 @@ app = FastAPI(title="OfficeAgent Document Q&A API", lifespan=lifespan)
 container = Container()
 app.container = container
 
+DEMO_DIST_DIR = Path(__file__).resolve().parent / "demo_assets"
+
 # 라우터 등록
 from app.api.document.router import router as document_router
 app.include_router(document_router)
 
 from app.api.query.router import router as query_router
 app.include_router(query_router)
+
+if (DEMO_DIST_DIR / "assets").exists():
+    app.mount(
+        "/demo/assets",
+        StaticFiles(directory=str(DEMO_DIST_DIR / "assets")),
+        name="demo-assets",
+    )
 
 @app.exception_handler(AppException)
 async def app_exception_handler(request: Request, exc: AppException):
@@ -57,3 +68,20 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 @app.get("/health")
 async def health():
     return BaseResponse.ok({"status": "ok"})
+
+
+@app.get("/demo", include_in_schema=False)
+@app.get("/demo/", include_in_schema=False)
+async def demo():
+    index_path = DEMO_DIST_DIR / "index.html"
+    if not index_path.exists():
+        return PlainTextResponse(
+            "Demo UI is not built yet. Run `npm run build` from the repository root.",
+            status_code=503,
+        )
+    return FileResponse(index_path)
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return Response(status_code=204)
