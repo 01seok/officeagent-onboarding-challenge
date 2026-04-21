@@ -30,12 +30,14 @@
 html,
 body,
 #root {
+  height: 100%;
   min-height: 100%;
 }
 
 body {
   margin: 0;
   color: var(--ink);
+  overflow-y: auto;
   background:
     radial-gradient(circle at 18% 100%, rgba(255, 255, 255, 0.16), transparent 18%),
     radial-gradient(circle at 78% 76%, rgba(155, 112, 255, 0.26), transparent 26%),
@@ -70,9 +72,13 @@ textarea,
 
 .demo-shell {
   position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 16px;
+  height: auto;
   min-height: 100vh;
-  padding: 28px;
-  overflow: hidden;
+  padding: 20px 24px;
+  overflow: visible;
 }
 
 .ambient {
@@ -116,7 +122,7 @@ textarea,
   gap: 18px;
   padding: 16px 22px;
   border-radius: 24px;
-  margin-bottom: 18px;
+  margin-bottom: 0;
   background: rgba(12, 13, 23, 0.94);
 }
 
@@ -179,10 +185,10 @@ textarea,
 .hero-card {
   display: grid;
   grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr);
-  gap: 24px;
-  padding: 30px;
+  gap: 20px;
+  padding: 22px 24px;
   border-radius: 30px;
-  margin-bottom: 22px;
+  margin-bottom: 0;
   background:
     radial-gradient(circle at 82% 74%, rgba(155, 112, 255, 0.18), transparent 30%),
     radial-gradient(circle at 10% 100%, rgba(255, 255, 255, 0.1), transparent 18%),
@@ -203,22 +209,23 @@ textarea,
 .panel-header h2 {
   margin: 0;
   color: var(--ink);
-  font-size: clamp(1.8rem, 3vw, 3rem);
+  font-size: clamp(1.55rem, 2.6vw, 2.55rem);
   line-height: 1.06;
 }
 
 .hero-copy {
   max-width: 62ch;
-  margin: 14px 0 0;
+  margin: 10px 0 0;
   color: var(--muted);
-  line-height: 1.7;
+  line-height: 1.6;
+  font-size: 0.96rem;
 }
 
 .hero-pill-row {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 18px;
+  margin-top: 14px;
 }
 
 .hero-pill {
@@ -233,7 +240,7 @@ textarea,
 
 .hero-stats article,
 .insight-grid article {
-  padding: 16px 18px;
+  padding: 14px 16px;
   border-radius: 18px;
   background: var(--panel-strong);
   border: 1px solid var(--line);
@@ -262,12 +269,91 @@ textarea,
   align-items: start;
 }
 
+.side-stack {
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 16px;
+}
+
 .panel {
   width: 100%;
+  min-height: 0;
   max-width: 100%;
   border-radius: 28px;
   padding: 22px;
   overflow: hidden;
+}
+
+.mini-hero,
+.context-summary,
+.document-panel,
+.insight-panel {
+  min-height: 0;
+}
+
+.document-panel,
+.insight-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.mini-hero {
+  display: grid;
+  gap: 12px;
+  padding: 20px 22px;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 92% 14%, rgba(155, 112, 255, 0.14), transparent 32%),
+    linear-gradient(180deg, rgba(10, 11, 20, 0.96), rgba(8, 8, 17, 0.94));
+}
+
+.mini-hero h1 {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(1.35rem, 1.8vw, 1.9rem);
+  line-height: 1.24;
+}
+
+.mini-hero .hero-copy {
+  max-width: none;
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.mini-hero .hero-pill-row {
+  margin-top: 0;
+}
+
+.context-summary {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 88% 10%, rgba(155, 112, 255, 0.12), transparent 28%),
+    linear-gradient(180deg, rgba(13, 14, 24, 0.95), rgba(10, 10, 19, 0.94));
+}
+
+.context-summary article {
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+}
+
+.context-summary span {
+  display: block;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.context-summary strong {
+  display: block;
+  margin-top: 8px;
+  line-height: 1.4;
+  color: var(--ink);
 }
 
 .panel-header {
@@ -429,6 +515,7 @@ textarea,
 
 .doc-scope {
   margin-top: 22px;
+  display: block;
 }
 
 .scope-header h3,
@@ -457,9 +544,9 @@ textarea,
   display: grid;
   gap: 12px;
   margin-top: 14px;
-  max-height: 62vh;
-  overflow: auto;
-  padding-right: 4px;
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
 }
 
 .document-card {
@@ -541,9 +628,9 @@ textarea,
 }
 
 .chat-panel {
-  min-height: 760px;
-  display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .mode-switch {
@@ -577,7 +664,7 @@ textarea,
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 14px;
+  margin-top: 0;
 }
 
 .sample-chip {
@@ -586,14 +673,18 @@ textarea,
 }
 
 .message-thread {
-  min-height: 420px;
-  max-height: 74vh;
-  margin-top: 18px;
+  min-height: 360px;
+  max-height: 52vh;
+  margin-top: 0;
   display: grid;
   gap: 14px;
   align-content: start;
   overflow: auto;
-  padding-right: 4px;
+  padding: 14px 8px 18px 14px;
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(11, 11, 22, 0.86), rgba(8, 8, 17, 0.92));
+  scrollbar-gutter: stable;
 }
 
 .thread-empty {
@@ -661,11 +752,12 @@ textarea,
 }
 
 .composer {
-  margin-top: 18px;
-  padding: 18px;
+  margin-top: 0;
+  padding: 14px 16px 16px;
   border-radius: 22px;
-  background: rgba(11, 11, 22, 0.94);
+  background: linear-gradient(180deg, rgba(12, 12, 23, 0.96), rgba(10, 10, 20, 0.99));
   border: 1px solid var(--line);
+  box-shadow: 0 16px 34px rgba(5, 6, 13, 0.38);
 }
 
 .composer-toolbar label {
@@ -690,12 +782,13 @@ textarea,
 
 .composer textarea {
   width: 100%;
-  min-height: 110px;
-  margin-top: 14px;
+  min-height: 84px;
+  max-height: 180px;
+  margin-top: 12px;
   resize: vertical;
   border: 1px solid var(--line);
   border-radius: 18px;
-  padding: 16px;
+  padding: 14px 16px;
   background: rgba(8, 8, 17, 0.94);
   color: var(--ink);
   line-height: 1.65;
@@ -714,6 +807,7 @@ textarea,
 
 .composer-actions {
   margin-top: 14px;
+  align-items: flex-end;
 }
 
 .composer-actions p {
@@ -723,10 +817,23 @@ textarea,
   line-height: 1.55;
 }
 
+.composer .accent-button {
+  width: auto;
+  min-width: 220px;
+  flex: 0 0 auto;
+}
+
 .insight-stack,
 .source-list {
   display: grid;
   gap: 14px;
+}
+
+.insight-stack {
+  max-height: 72vh;
+  overflow: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
 }
 
 .insight-card {
@@ -776,6 +883,13 @@ textarea,
   font-family: "JetBrains Mono", "SFMono-Regular", monospace;
 }
 
+.source-list {
+  max-height: 44vh;
+  overflow: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
 .brand-subtitle,
 .topbar-chip,
 .hero-pill,
@@ -801,13 +915,15 @@ textarea,
   word-break: keep-all;
 }
 
-.document-list::-webkit-scrollbar,
-.message-thread::-webkit-scrollbar {
+.message-thread::-webkit-scrollbar,
+.insight-stack::-webkit-scrollbar,
+.source-list::-webkit-scrollbar {
   width: 10px;
 }
 
-.document-list::-webkit-scrollbar-thumb,
-.message-thread::-webkit-scrollbar-thumb {
+.message-thread::-webkit-scrollbar-thumb,
+.insight-stack::-webkit-scrollbar-thumb,
+.source-list::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
   background: rgba(149, 168, 196, 0.22);
@@ -831,12 +947,9 @@ textarea,
     grid-template-columns: 1fr;
   }
 
-  .chat-panel {
-    min-height: 640px;
-  }
-
-  .document-list,
-  .message-thread {
+  .message-thread,
+  .insight-stack,
+  .source-list {
     max-height: none;
   }
 }
@@ -847,14 +960,12 @@ textarea,
   }
 
   .topbar,
-  .hero-card,
   .panel {
     padding: 18px;
     border-radius: 22px;
   }
 
   .topbar,
-  .hero-card,
   .panel-header,
   .composer-toolbar,
   .composer-actions,
@@ -870,8 +981,8 @@ textarea,
     justify-content: flex-start;
   }
 
-  .hero-card {
-    grid-template-columns: 1fr;
+  .context-summary {
+    padding: 14px;
   }
 
   .upload-picker-row {

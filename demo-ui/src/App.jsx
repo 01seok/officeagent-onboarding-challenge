@@ -75,9 +75,11 @@ export default function App() {
     "업로드된 문서에서 관련 내용을 찾고, 답변과 출처를 함께 제공합니다. 일반 응답과 스트리밍 응답을 모두 사용할 수 있습니다.",
   );
   const uploadInputRef = useRef(null);
+  const composerInputRef = useRef(null);
   const streamCleanupRef = useRef(() => {});
   const messageThreadRef = useRef(null);
   const lastScrollTargetRef = useRef("");
+  const isComposingRef = useRef(false);
 
   async function refreshDocuments({ silent = false } = {}) {
     if (!silent) {
@@ -196,10 +198,8 @@ export default function App() {
     }
   }
 
-  async function handleSubmit(event) {
-    event.preventDefault();
-
-    const nextQuestion = question.trim();
+  async function submitQuestion() {
+    const nextQuestion = (composerInputRef.current?.value ?? question).trim();
     if (!nextQuestion || submitting) {
       return;
     }
@@ -227,6 +227,9 @@ export default function App() {
 
     setMessages((current) => [...current, userMessage, assistantPlaceholder]);
     setQuestion("");
+    if (composerInputRef.current) {
+      composerInputRef.current.value = "";
+    }
     setSubmitting(true);
     streamCleanupRef.current();
 
@@ -243,6 +246,11 @@ export default function App() {
     }
 
     setSubmitting(false);
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    await submitQuestion();
   }
 
   async function submitStandardQuery(payload, assistantId, originalQuestion, scopeLabel) {
@@ -475,6 +483,8 @@ export default function App() {
 
   const completedDocuments = documents.filter((item) => item.status === "completed");
   const selectedDocument = documents.find((item) => item.doc_id === selectedDocId);
+  const scopeLabel = selectedDocument?.filename ?? "전체 문서";
+  const modeLabel = queryMode === "standard" ? "일반 응답" : "스트리밍";
 
   return (
     <div className="demo-shell">
@@ -497,163 +507,148 @@ export default function App() {
         </div>
       </div>
 
-      <header className="hero-card">
-        <div>
-          <p className="eyebrow">Document-grounded answers for internal knowledge</p>
-          <h1>사내 문서를 기반으로 정확하게 답변합니다</h1>
-          <p className="hero-copy">
-            업로드된 문서에서 관련 내용을 찾고, 답변과 함께 출처를 보여줍니다.
-            문서에 근거가 없을 때는 관련 내용이 없다고 보수적으로 안내합니다.
-          </p>
-
-          <div className="hero-pill-row">
-            {PRODUCT_PILLARS.map((item) => (
-              <span key={item} className="hero-pill">
-                {item}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <div className="hero-stats">
-          <article>
-            <span>연결된 문서</span>
-            <strong>{documents.length}</strong>
-          </article>
-          <article>
-            <span>질의 범위</span>
-            <strong>{selectedDocument?.filename ?? "전체 문서"}</strong>
-          </article>
-          <article>
-            <span>응답 모드</span>
-            <strong>{queryMode === "standard" ? "일반 응답" : "스트리밍"}</strong>
-          </article>
-        </div>
-      </header>
-
       <div className="layout-grid">
-        <aside className="panel surface">
-          <div className="panel-header">
-            <div>
-              <p className="panel-kicker">Document Hub</p>
-              <h2>문서 관리</h2>
-            </div>
-            <button
-              className="ghost-button"
-              onClick={() => refreshDocuments()}
-              type="button"
-            >
-              새로고침
-            </button>
-          </div>
+        <div className="side-stack left-stack">
+          <section className="surface mini-hero">
+            <p className="eyebrow">Document-grounded answers for internal knowledge</p>
+            <h1>사내 문서를 기반으로 정확하게 답변합니다</h1>
+            <p className="hero-copy">
+              업로드된 문서에서 관련 내용을 찾고, 답변과 함께 출처를 보여줍니다.
+              문서에 근거가 없을 때는 관련 내용이 없다고 보수적으로 안내합니다.
+            </p>
 
-          <form className="upload-form" onSubmit={handleUpload}>
-            <div className="upload-dropzone">
-              <span className="upload-title">PDF, TXT, Markdown 지원</span>
-              <span className="upload-subtitle">
-                문서를 연결하면 백그라운드에서 청킹과 임베딩을 수행하고 검색 가능한
-                지식 베이스로 반영합니다.
-              </span>
-
-              <div className="upload-picker-row">
-                <label className="picker-button" htmlFor="officeagent-upload-input">
-                  파일 선택
-                </label>
-                <span className="upload-filename">
-                  {uploadFile ? uploadFile.name : "선택된 파일 없음"}
+            <div className="hero-pill-row">
+              {PRODUCT_PILLARS.map((item) => (
+                <span key={item} className="hero-pill">
+                  {item}
                 </span>
-              </div>
-
-              <input
-                ref={uploadInputRef}
-                id="officeagent-upload-input"
-                className="visually-hidden"
-                type="file"
-                accept=".pdf,.txt,.md,.markdown"
-                onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
-              />
+              ))}
             </div>
+          </section>
 
-            <div className="upload-meta">
-              <span>업로드 후 자동으로 문서 상태를 갱신합니다.</span>
+          <aside className="panel surface document-panel">
+            <div className="panel-header">
+              <div>
+                <p className="panel-kicker">Document Hub</p>
+                <h2>문서 관리</h2>
+              </div>
               <button
-                className="solid-button"
-                disabled={uploading || !uploadFile}
-                type="submit"
+                className="ghost-button"
+                onClick={() => refreshDocuments()}
+                type="button"
               >
-                {uploading ? "업로드 중..." : "업로드 시작"}
+                새로고침
               </button>
             </div>
-          </form>
 
-          <div className="doc-scope">
-            <div className="scope-header">
-              <h3>연결된 문서</h3>
-              <span>{completedDocuments.length}개 문서 사용 가능</span>
-            </div>
+            <form className="upload-form" onSubmit={handleUpload}>
+              <div className="upload-dropzone">
+                <span className="upload-title">PDF, TXT, Markdown 지원</span>
+                <span className="upload-subtitle">
+                  문서를 연결하면 백그라운드에서 청킹과 임베딩을 수행하고 검색 가능한
+                  지식 베이스로 반영합니다.
+                </span>
 
-            <button
-              type="button"
-              className={`scope-chip ${selectedDocId === "" ? "is-active" : ""}`}
-              onClick={() => setSelectedDocId("")}
-            >
-              전체 문서
-            </button>
+                <div className="upload-picker-row">
+                  <label className="picker-button" htmlFor="officeagent-upload-input">
+                    파일 선택
+                  </label>
+                  <span className="upload-filename">
+                    {uploadFile ? uploadFile.name : "선택된 파일 없음"}
+                  </span>
+                </div>
 
-            <div className="document-list">
-              {loadingDocuments ? (
-                <div className="empty-block">문서 목록을 불러오는 중입니다.</div>
-              ) : documents.length === 0 ? (
-                <div className="empty-block">업로드된 문서가 아직 없습니다.</div>
-              ) : (
-                documents.map((document) => (
-                  <article
-                    key={document.doc_id}
-                    className={`document-card ${selectedDocId === document.doc_id ? "is-selected" : ""}`}
-                  >
-                    <button
-                      type="button"
-                      className="document-select"
-                      onClick={() => {
-                        if (document.status !== "completed") {
-                          setNotice(
-                            `${document.filename} 문서는 아직 ${STATUS_LABELS[document.status] ?? document.status} 상태라 질의 범위로 선택할 수 없습니다.`,
-                          );
-                          return;
-                        }
+                <input
+                  ref={uploadInputRef}
+                  id="officeagent-upload-input"
+                  className="visually-hidden"
+                  type="file"
+                  accept=".pdf,.txt,.md,.markdown"
+                  onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
+                />
+              </div>
 
-                        setSelectedDocId((current) =>
-                          current === document.doc_id ? "" : document.doc_id,
-                        );
-                      }}
+              <div className="upload-meta">
+                <span>업로드 후 자동으로 문서 상태를 갱신합니다.</span>
+                <button
+                  className="solid-button"
+                  disabled={uploading || !uploadFile}
+                  type="submit"
+                >
+                  {uploading ? "업로드 중..." : "업로드 시작"}
+                </button>
+              </div>
+            </form>
+
+            <div className="doc-scope">
+              <div className="scope-header">
+                <h3>연결된 문서</h3>
+                <span>{completedDocuments.length}개 문서 사용 가능</span>
+              </div>
+
+              <button
+                type="button"
+                className={`scope-chip ${selectedDocId === "" ? "is-active" : ""}`}
+                onClick={() => setSelectedDocId("")}
+              >
+                전체 문서
+              </button>
+
+              <div className="document-list">
+                {loadingDocuments ? (
+                  <div className="empty-block">문서 목록을 불러오는 중입니다.</div>
+                ) : documents.length === 0 ? (
+                  <div className="empty-block">업로드된 문서가 아직 없습니다.</div>
+                ) : (
+                  documents.map((document) => (
+                    <article
+                      key={document.doc_id}
+                      className={`document-card ${selectedDocId === document.doc_id ? "is-selected" : ""}`}
                     >
-                      <div>
-                        <strong>{document.filename}</strong>
-                        <p>{formatCreatedAt(document.created_at)}</p>
-                      </div>
-                      <span className={`status-badge status-${document.status}`}>
-                        {STATUS_LABELS[document.status] ?? document.status}
-                      </span>
-                    </button>
-
-                    <div className="document-footer">
-                      <span>{document.chunk_count} chunks</span>
                       <button
                         type="button"
-                        className="danger-link"
-                        onClick={() =>
-                          handleDeleteDocument(document.doc_id, document.filename)
-                        }
+                        className="document-select"
+                        onClick={() => {
+                          if (document.status !== "completed") {
+                            setNotice(
+                              `${document.filename} 문서는 아직 ${STATUS_LABELS[document.status] ?? document.status} 상태라 질의 범위로 선택할 수 없습니다.`,
+                            );
+                            return;
+                          }
+
+                          setSelectedDocId((current) =>
+                            current === document.doc_id ? "" : document.doc_id,
+                          );
+                        }}
                       >
-                        삭제
+                        <div>
+                          <strong>{document.filename}</strong>
+                          <p>{formatCreatedAt(document.created_at)}</p>
+                        </div>
+                        <span className={`status-badge status-${document.status}`}>
+                          {STATUS_LABELS[document.status] ?? document.status}
+                        </span>
                       </button>
-                    </div>
-                  </article>
-                ))
-              )}
+
+                      <div className="document-footer">
+                        <span>{document.chunk_count} chunks</span>
+                        <button
+                          type="button"
+                          className="danger-link"
+                          onClick={() =>
+                            handleDeleteDocument(document.doc_id, document.filename)
+                          }
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </article>
+                  ))
+                )}
+              </div>
             </div>
-          </div>
-        </aside>
+          </aside>
+        </div>
 
         <main className="panel surface chat-panel">
           <div className="panel-header">
@@ -747,19 +742,31 @@ export default function App() {
               </label>
 
               <span className="scope-summary">
-                현재 범위: {selectedDocument?.filename ?? "전체 문서"}
+                현재 범위: {scopeLabel}
               </span>
             </div>
 
             <textarea
+              ref={composerInputRef}
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
+              onCompositionStart={() => {
+                isComposingRef.current = true;
+              }}
+              onCompositionEnd={(event) => {
+                isComposingRef.current = false;
+                setQuestion(event.currentTarget.value);
+              }}
               placeholder="우리 회사 문서에 대해 질문해보세요. 예: 연차는 어떻게 발생하나요?"
-              rows={4}
+              rows={3}
               onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing || isComposingRef.current) {
+                  return;
+                }
+
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
-                  handleSubmit(event);
+                  submitQuestion();
                 }
               }}
             />
@@ -777,89 +784,106 @@ export default function App() {
           </form>
         </main>
 
-        <aside className="panel surface">
-          <div className="panel-header">
-            <div>
-              <p className="panel-kicker">Answer Insight</p>
-              <h2>응답 정보</h2>
+        <div className="side-stack right-stack">
+          <section className="surface context-summary">
+            <article>
+              <span>연결된 문서</span>
+              <strong>{documents.length}</strong>
+            </article>
+            <article>
+              <span>질의 범위</span>
+              <strong>{scopeLabel}</strong>
+            </article>
+            <article>
+              <span>응답 모드</span>
+              <strong>{modeLabel}</strong>
+            </article>
+          </section>
+
+          <aside className="panel surface insight-panel">
+            <div className="panel-header">
+              <div>
+                <p className="panel-kicker">Answer Insight</p>
+                <h2>응답 정보</h2>
+              </div>
             </div>
-          </div>
 
-          {!lastInsight ? (
-            <div className="empty-block">
-              질의를 실행하면 캐시 여부, grounded 여부, 출처 청크 정보를 이곳에서
-              확인할 수 있습니다.
-            </div>
-          ) : (
-            <div className="insight-stack">
-              <section className="insight-card">
-                <div className="insight-grid">
-                  <article>
-                    <span>질의 모드</span>
-                    <strong>{lastInsight.mode === "standard" ? "일반 응답" : "스트리밍"}</strong>
-                  </article>
-                  <article>
-                    <span>질의 범위</span>
-                    <strong>{lastInsight.scopeLabel}</strong>
-                  </article>
-                  <article>
-                    <span>응답 시간</span>
-                    <strong>{Math.round(lastInsight.durationMs)} ms</strong>
-                  </article>
-                  <article>
-                    <span>질문</span>
-                    <strong>{lastInsight.question}</strong>
-                  </article>
-                </div>
-
-                {lastInsight.mode === "standard" ? (
-                  <div className="badge-row">
-                    <span className={`pill ${lastInsight.cacheHit ? "pill-success" : ""}`}>
-                      {lastInsight.cacheHit ? "Cache Hit" : "Fresh Response"}
-                    </span>
-                    <span
-                      className={`pill ${lastInsight.hasRelevantContent === false ? "pill-muted" : "pill-warning"}`}
-                    >
-                      {lastInsight.hasRelevantContent === false
-                        ? "No Relevant Content"
-                        : "Grounded Answer"}
-                    </span>
-                    <span className="pill">Sources {lastInsight.sources?.length ?? 0}</span>
-                  </div>
-                ) : (
-                  <div className="stream-note">
-                    현재 스트리밍 응답은 답변 내용을 먼저 보여주고, 출처와 캐시 정보는
-                    일반 응답 모드에서 함께 확인할 수 있습니다.
-                  </div>
-                )}
-              </section>
-
-              {lastInsight.mode === "standard" ? (
+            {!lastInsight ? (
+              <div className="empty-block">
+                질의를 실행하면 캐시 여부, grounded 여부, 출처 청크 정보를 이곳에서
+                확인할 수 있습니다.
+              </div>
+            ) : (
+              <div className="insight-stack">
                 <section className="insight-card">
-                  <h3>출처 청크</h3>
-                  {lastInsight.sources?.length ? (
-                    <div className="source-list">
-                      {lastInsight.sources.map((source) => (
-                        <article key={`${source.doc_id}-${source.chunk_index}`} className="source-card">
-                          <div className="source-head">
-                            <strong>{source.filename}</strong>
-                            <span>chunk #{source.chunk_index}</span>
-                          </div>
-                          <p>{source.text}</p>
-                          <small>RRF score {source.score.toFixed(4)}</small>
-                        </article>
-                      ))}
+                  <div className="insight-grid">
+                    <article>
+                      <span>질의 모드</span>
+                      <strong>{lastInsight.mode === "standard" ? "일반 응답" : "스트리밍"}</strong>
+                    </article>
+                    <article>
+                      <span>질의 범위</span>
+                      <strong>{lastInsight.scopeLabel}</strong>
+                    </article>
+                    <article>
+                      <span>응답 시간</span>
+                      <strong>{Math.round(lastInsight.durationMs)} ms</strong>
+                    </article>
+                    <article>
+                      <span>질문</span>
+                      <strong>{lastInsight.question}</strong>
+                    </article>
+                  </div>
+
+                  {lastInsight.mode === "standard" ? (
+                    <div className="badge-row">
+                      <span className={`pill ${lastInsight.cacheHit ? "pill-success" : ""}`}>
+                        {lastInsight.cacheHit ? "Cache Hit" : "Fresh Response"}
+                      </span>
+                      <span
+                        className={`pill ${lastInsight.hasRelevantContent === false ? "pill-muted" : "pill-warning"}`}
+                      >
+                        {lastInsight.hasRelevantContent === false
+                          ? "No Relevant Content"
+                          : "Grounded Answer"}
+                      </span>
+                      <span className="pill">Sources {lastInsight.sources?.length ?? 0}</span>
                     </div>
                   ) : (
-                    <div className="empty-block">
-                      관련 출처가 없을 때는 sources를 비워 환각 가능성을 낮춥니다.
+                    <div className="stream-note">
+                      현재 스트리밍 응답은 답변 내용을 먼저 보여주고, 출처와 캐시 정보는
+                      일반 응답 모드에서 함께 확인할 수 있습니다.
                     </div>
                   )}
                 </section>
-              ) : null}
-            </div>
-          )}
-        </aside>
+
+                {lastInsight.mode === "standard" ? (
+                  <section className="insight-card">
+                    <h3>출처 청크</h3>
+                    {lastInsight.sources?.length ? (
+                      <div className="source-list">
+                        {lastInsight.sources.map((source) => (
+                          <article key={`${source.doc_id}-${source.chunk_index}`} className="source-card">
+                            <div className="source-head">
+                              <strong>{source.filename}</strong>
+                              <span>chunk #{source.chunk_index}</span>
+                            </div>
+                            <p>{source.text}</p>
+                            <small>RRF score {source.score.toFixed(4)}</small>
+                          </article>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="empty-block">
+                        관련 출처가 없을 때는 sources를 비워 환각 가능성을 낮춥니다.
+                      </div>
+                    )}
+                  </section>
+                ) : null}
+              </div>
+            )}
+          </aside>
+        </div>
       </div>
     </div>
   );
