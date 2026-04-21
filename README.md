@@ -6,7 +6,7 @@
 
 ---
 
-## 빠른 실행
+## 빠른 실행 (mac OS 기준)
 
 ```bash
 brew install redis
@@ -27,7 +27,7 @@ uvicorn app.main:app --port 8000
 
 ---
 
-## 면접용 데모 UI
+## 데모 UI
 
 - 기본 실행: 백엔드 서버를 띄운 뒤 `http://127.0.0.1:8000/demo`로 접속하면 됩니다.
 - UI 개발용: 백엔드를 `8000` 포트로 띄운 뒤 저장소 루트에서 `npm install`, `npm run dev`
