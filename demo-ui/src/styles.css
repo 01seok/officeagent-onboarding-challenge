@@ -631,6 +631,14 @@ textarea,
   display: flex;
   flex-direction: column;
   gap: 14px;
+  border-color: rgba(226, 214, 255, 0.34);
+  background:
+    radial-gradient(circle at 82% 14%, rgba(173, 133, 255, 0.18), transparent 30%),
+    linear-gradient(180deg, rgba(34, 35, 58, 0.98), rgba(21, 22, 40, 0.97));
+  box-shadow:
+    0 28px 80px rgba(0, 0, 0, 0.52),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 0 0 1px rgba(255, 255, 255, 0.03);
 }
 
 .mode-switch {
@@ -654,8 +662,8 @@ textarea,
 .thread-empty {
   border-radius: 18px;
   padding: 16px;
-  border: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(23, 19, 40, 0.92), rgba(11, 11, 22, 0.94));
+  border: 1px solid rgba(213, 198, 250, 0.2);
+  background: linear-gradient(180deg, rgba(42, 36, 69, 0.95), rgba(23, 23, 41, 0.97));
   color: var(--muted);
   line-height: 1.65;
 }
@@ -664,7 +672,7 @@ textarea,
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 0;
+  margin-top: 2px;
 }
 
 .sample-chip {
@@ -682,8 +690,8 @@ textarea,
   overflow: auto;
   padding: 14px 8px 18px 14px;
   border-radius: 22px;
-  border: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(11, 11, 22, 0.86), rgba(8, 8, 17, 0.92));
+  border: 1px solid rgba(219, 205, 255, 0.24);
+  background: linear-gradient(180deg, rgba(33, 34, 55, 0.95), rgba(20, 20, 36, 0.98));
   scrollbar-gutter: stable;
 }
 
@@ -716,7 +724,7 @@ textarea,
 
 .message-card.from-assistant {
   justify-self: start;
-  background: linear-gradient(180deg, rgba(16, 16, 30, 0.96), rgba(10, 10, 20, 0.9));
+  background: linear-gradient(180deg, rgba(38, 39, 63, 0.98), rgba(22, 22, 39, 0.95));
 }
 
 .message-card.is-error {
@@ -755,8 +763,8 @@ textarea,
   margin-top: 0;
   padding: 14px 16px 16px;
   border-radius: 22px;
-  background: linear-gradient(180deg, rgba(12, 12, 23, 0.96), rgba(10, 10, 20, 0.99));
-  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(34, 35, 57, 0.98), rgba(22, 22, 39, 0.99));
+  border: 1px solid rgba(219, 205, 255, 0.24);
   box-shadow: 0 16px 34px rgba(5, 6, 13, 0.38);
 }
 
@@ -769,9 +777,9 @@ textarea,
 
 .composer-toolbar select {
   border-radius: 10px;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(211, 196, 252, 0.2);
   padding: 8px 10px;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.08);
   color: var(--ink);
 }
 
@@ -786,16 +794,19 @@ textarea,
   max-height: 180px;
   margin-top: 12px;
   resize: vertical;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(231, 219, 255, 0.3);
   border-radius: 18px;
   padding: 14px 16px;
-  background: rgba(8, 8, 17, 0.94);
+  background: linear-gradient(180deg, rgba(53, 54, 82, 0.99), rgba(37, 38, 59, 0.99));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 10px 24px rgba(8, 9, 18, 0.18);
   color: var(--ink);
   line-height: 1.65;
 }
 
 .composer textarea::placeholder {
-  color: #8c83ab;
+  color: #b6acd4;
 }
 
 .composer textarea:focus,

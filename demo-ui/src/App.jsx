@@ -248,6 +248,13 @@ export default function App() {
     setSubmitting(false);
   }
 
+  function handleSamplePromptSelect(prompt) {
+    setQuestion(prompt);
+    window.requestAnimationFrame(() => {
+      composerInputRef.current?.focus();
+    });
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     await submitQuestion();
@@ -676,19 +683,6 @@ export default function App() {
 
           <div className="notice-banner">{notice}</div>
 
-          <div className="sample-prompt-row">
-            {SAMPLE_PROMPTS.map((prompt) => (
-              <button
-                key={prompt}
-                type="button"
-                className="sample-chip"
-                onClick={() => setQuestion(prompt)}
-              >
-                {prompt}
-              </button>
-            ))}
-          </div>
-
           <section ref={messageThreadRef} className="message-thread">
             {messages.length === 0 ? (
               <div className="thread-empty">
@@ -724,6 +718,19 @@ export default function App() {
               ))
             )}
           </section>
+
+          <div className="sample-prompt-row">
+            {SAMPLE_PROMPTS.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                className="sample-chip"
+                onClick={() => handleSamplePromptSelect(prompt)}
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
 
           <form className="composer" onSubmit={handleSubmit}>
             <div className="composer-toolbar">
